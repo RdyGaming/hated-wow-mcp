@@ -195,7 +195,25 @@ async function fetchDb2(table: string, build?: string): Promise<Record<string, s
     headers: { "user-agent": "wow-mcp-server/sync", accept: "text/csv" },
     redirect: "follow",
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${table} from wago.tools`);
+  if (!res.ok) {
+    // wago.tools runs bot protection and blocks many datacentre/VPN ranges.
+    // The bare status code sends people hunting for a bug that isn't here, so
+    // say what to actually do about it — and that nothing else is affected.
+    throw new Error(
+      [
+        `HTTP ${res.status} fetching ${table} from wago.tools.`,
+        "",
+        "wago.tools uses bot protection. Open https://wago.tools/ in a browser,",
+        "let the page finish loading, then re-run this command.",
+        "",
+        "Still failing? You are probably on a blocked datacentre, cloud or VPN",
+        "IP — try a normal desktop connection with any VPN turned off.",
+        "",
+        "This step only powers wow_atlas_search. The file index above is already",
+        "written, and the other 18 tools work without it.",
+      ].join("\n"),
+    );
+  }
   return parseCsv(await res.text());
 }
 

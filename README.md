@@ -301,6 +301,13 @@ path in your config is wrong. It must be absolute.
 
 **`sync-ui-source` fails.** You need `git` on your PATH.
 
+**"Filename too long" / "Clone succeeded, but checkout failed" (Windows).** Some
+Blizzard filenames are 108 characters on their own, so a deep clone path can
+exceed Windows' 260-character limit. The sync scripts pass `core.longpaths=true`
+to git to handle this. If you still hit it, clone somewhere shorter — keep the
+path under about 150 characters (`C:\dev\hated-wow-mcp` is plenty of room) — or
+enable long paths system-wide in Windows.
+
 ---
 
 ## Contributing

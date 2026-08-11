@@ -37,8 +37,18 @@ const BRANCHES: Record<string, string> = {
 // Checkout
 // ---------------------------------------------------------------------------
 
+/**
+ * Blizzard ships filenames long enough that a checkout blows past Windows'
+ * 260-character MAX_PATH once the clone sits more than ~150 characters deep
+ * (`Blizzard_ProfessionsCustomerOrdersRecipeCategoryList.lua` alone is 108).
+ * Git then reports "Clone succeeded, but checkout failed", which is fatal here
+ * but reads like a warning. `-c` scopes this to our own invocations rather than
+ * writing to the user's global git config; it is a no-op off Windows.
+ */
+const GIT_OPTS = ["-c", "core.longpaths=true"];
+
 function git(args: string[], cwd: string): string {
-  return execFileSync("git", args, {
+  return execFileSync("git", [...GIT_OPTS, ...args], {
     cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -69,7 +79,7 @@ function ensureCheckout(branch: string): string {
   process.stderr.write(`[${branch}] cloning ${REPO}…\n`);
   execFileSync(
     "git",
-    ["clone", "--depth", "1", "--branch", branch, REPO, dir],
+    [...GIT_OPTS, "clone", "--depth", "1", "--branch", branch, REPO, dir],
     { stdio: ["ignore", "inherit", "inherit"] },
   );
   return dir;
