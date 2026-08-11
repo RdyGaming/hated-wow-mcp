@@ -34,6 +34,11 @@ npm run sync-all
 npm test
 ```
 
+> **Before you run `sync-all`:** open **<https://wago.tools/>** once in your
+> browser and let the page fully load. wago.tools sits behind bot protection,
+> and visiting it first from the same connection lets the atlas download through.
+> Skip this and the atlas step may fail with HTTP 403.
+
 `npm run sync-all` downloads the game data (a ~44 MB shallow clone of Blizzard's
 UI source and a ~149 MB listfile). Give it a few minutes on first run. `npm test`
 should report **46 passed, 0 failed**.
@@ -232,10 +237,18 @@ patch by hours to days.
 
 ### wago.tools access
 
-The atlas index comes from wago.tools, which blocks many datacentre and cloud IP
-ranges. If `sync-game-data` reports HTTP 403 for the atlas step, run it from a
-normal desktop connection — the file index in the same script is fetched from
-GitHub and works regardless. Only `wow_atlas_search` depends on the atlas step.
+**Open <https://wago.tools/> in a browser and let it load before running
+`sync-game-data` or `sync-all`.** The site is behind bot protection, and a
+browser visit from the same connection clears the way for the atlas download
+that follows. Doing this first avoids most atlas failures.
+
+If the atlas step still reports HTTP 403, wago.tools is refusing the connection
+outright — it blocks many datacentre, cloud and VPN IP ranges. Run it from a
+normal desktop connection, with any VPN off.
+
+This never blocks the rest of the sync. The file index in the same script comes
+from GitHub and works regardless, and only `wow_atlas_search` depends on the
+atlas step — the other 18 tools are unaffected.
 
 ---
 
