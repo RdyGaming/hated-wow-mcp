@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "wow": {
+      "command": "node",
+      "args": ["/absolute/path/to/hated-wow-mcp/dist/index.js"],
+      "env": {
+        "WOW_DEFAULT_FLAVOR": "mainline"
+      }
+    }
+  }
+}

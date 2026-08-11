@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-08-11T18:27:03.421Z",
+  "flavors": {
+    "mainline": {
+      "functions": 6335,
+      "events": 1783,
+      "tables": 1676,
+      "globals": 6704,
+      "cvars": 1727
+    },
+    "classic": {
+      "functions": 4590,
+      "events": 1484,
+      "tables": 1330,
+      "globals": 5351,
+      "cvars": 1649
+    },
+    "vanilla": {
+      "functions": 4589,
+      "events": 1484,
+      "tables": 1331,
+      "globals": 5210,
+      "cvars": 1637
+    }
+  }
+}

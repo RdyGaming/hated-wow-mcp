@@ -1,0 +1,19 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+
+# Generated data. Rebuild with the sync scripts:
+#   npm run sync-all
+#
+# NOTE: git only treats '#' as a comment at the START of a line, so these
+# patterns must stay bare — a trailing comment becomes part of the pattern.
+data/.cache/
+# ~44MB shallow clone of Blizzard's UI source
+data/uisource/
+data/uisource-index.json
+# ~14MB listfile index
+data/files-index.json
+data/atlas-index.json

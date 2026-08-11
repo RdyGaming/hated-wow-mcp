@@ -1,0 +1,24 @@
+name: Build
+
+# Build only. The smoke tests need the full synced data set (a ~44 MB git clone
+# plus a ~149 MB listfile, and wago.tools blocks datacentre IPs), so running
+# them here would be slow and flaky. Run `npm test` locally after `sync-all`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: node dist/index.js --list

@@ -1,0 +1,40 @@
+name: Sync WoW API index
+
+# The committed data/api-*.json files are the only data that ships in this repo,
+# so they are the only thing that goes stale here. Everything else (UI source,
+# listfile, atlas) is synced on the user's machine from upstream mirrors.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch: # allow manual runs, e.g. on patch day
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync API index
+        run: npm run sync-api
+
+      - name: Commit if changed
+        run: |
+          if [[ -z "$(git status --porcelain data/)" ]]; then
+            echo "API index unchanged — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -m "chore(data): sync WoW API index"
+          git push

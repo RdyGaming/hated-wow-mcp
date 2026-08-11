@@ -1,0 +1,61 @@
+{
+  "name": "hated-wow-mcp",
+  "version": "0.1.0",
+  "description": "Hated WoW MCP — an MCP server for World of Warcraft addon development: the in-game Lua API, Blizzard's shipped UI source, and game art/file data.",
+  "type": "module",
+  "bin": {
+    "hated-wow-mcp": "dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RdyGaming/hated-wow-mcp.git"
+  },
+  "homepage": "https://github.com/RdyGaming/hated-wow-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/RdyGaming/hated-wow-mcp/issues"
+  },
+  "funding": "https://buymeacoffee.com/rdygaming",
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "data",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "list-tools": "node dist/index.js --list",
+    "sync-api": "tsx scripts/sync-wow-data.ts",
+    "sync-ui-source": "tsx scripts/sync-ui-source.ts",
+    "sync-game-data": "tsx scripts/sync-game-data.ts",
+    "sync-all": "npm run sync-api && npm run sync-ui-source && npm run sync-game-data",
+    "test": "node test/smoke.mjs",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "world-of-warcraft",
+    "wow",
+    "addon",
+    "lua",
+    "blizzard",
+    "battle.net"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "fast-xml-parser": "^4.5.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
