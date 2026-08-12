@@ -143,7 +143,7 @@ npm run sync-all
 npm test
 ```
 
-`npm test` should report **60 passed, 0 failed**. On Windows, `setup.cmd` does
+`npm test` should report **65 passed, 0 failed**. On Windows, `setup.cmd` does
 all five steps and prints the absolute path you need below.
 
 A clone keeps its synced data in `data/` beside the source rather than in the OS
@@ -231,7 +231,7 @@ All settings are optional — see `.env.example`.
 | --- | --- | --- |
 | Lua API index | 6,335 functions, 1,783 events, 1,676 enums/structures, 6,704 globals (retail; Classic and Classic Era indexed separately) | Blizzard's own generated `/api` documentation, mirrored at [Gethe/wow-ui-source](https://github.com/Gethe/wow-ui-source) |
 | UI source | 4,036 files across 348 `Blizzard_*` packages — 4,044 inheritable XML templates, 3,488 mixins, 26,859 mixin methods | Same mirror |
-| CVars | 1,727 registered console variables, 451 of them with usage evidence from Blizzard's own UI | API index + UI source |
+| CVars | 1,635 console variables with defaults, categories, scope and Blizzard's own descriptions; 451 also carry usage evidence from the UI source | [Ketho/BlizzardInterfaceResources](https://github.com/Ketho/BlizzardInterfaceResources) + UI source |
 | UI schema | Blizzard's `UI.xsd`, parsed for element/attribute validation | Same mirror |
 | File index | 172,175 interface files including 36,624 icons, mapped to FileDataIDs | [wowdev/wow-listfile](https://github.com/wowdev/wow-listfile) |
 | Atlas index | 17,465 named `SetAtlas` elements with sizes and coordinates | [wago.tools](https://wago.tools) DB2 exports |
@@ -259,7 +259,7 @@ tracks patches without anyone hand-maintaining a list.
 | --- | --- |
 | `wow_ui_template_search` | Find an inheritable XML template, with its inheritance chain |
 | `wow_ui_mixin_search` | Find a mixin by name or by one of its methods |
-| `wow_cvar_search` | Find a CVar, how Blizzard reads it, and what the options screen calls it |
+| `wow_cvar_search` | Find a CVar: default, category, scope, whether it is protected, and how Blizzard uses it |
 | `wow_ui_grep` | Regex-search all 4,036 shipped Lua/XML files |
 | `wow_ui_read_file` | Read a shipped source file in context |
 | `wow_ui_list_packages` | List the `Blizzard_*` packages |
@@ -389,7 +389,7 @@ src/
   paths.ts             bundled vs. synced data locations
 server.js              local web UI backend (npm run web)
 index.html             local web UI frontend
-test/smoke.mjs         60 end-to-end checks against real data
+test/smoke.mjs         65 end-to-end checks against real data
 data/                  bundled API indexes, plus synced ones in a clone
 ```
 

@@ -21,7 +21,7 @@ Before the first `sync-all`, open <https://wago.tools/> once in a browser and
 let it load — the atlas step is fetched from there and the site blocks requests
 that arrive without a prior visit from the same connection.
 
-`npm test` should report **60 passed, 0 failed**. The tests run against the real
+`npm test` should report **65 passed, 0 failed**. The tests run against the real
 synced data, so they will fail in ways that look alarming if the sync has not
 finished.
 

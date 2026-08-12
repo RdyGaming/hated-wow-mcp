@@ -14,7 +14,7 @@ Delete the lines that do not apply.
 -->
 
 - [ ] `npm run build` passes
-- [ ] `npm test` passes (60 checks, needs a completed `sync-all`)
+- [ ] `npm test` passes (65 checks, needs a completed `sync-all`)
 - [ ] Tried it through an MCP client, not just the tests
 - [ ] Verified against the game or Blizzard's source, if this changes what a tool reports
 

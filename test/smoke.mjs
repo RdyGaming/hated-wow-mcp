@@ -408,6 +408,77 @@ await check("usedOnly drops registry-only entries", "wow_cvar_search",
 await check("explains itself when nothing matches", "wow_cvar_search",
   { query: "zzzzNotARealCVar" }, (b) => has(b, "No CVar matching"));
 
+await check("reports the registry default and description", "wow_cvar_search",
+  { query: "ActionButtonUseKeyDown" }, (b) => {
+    has(b, "Activate the action button on a keydown");
+    has(b, "default:");
+    has(b, "category:  Game");
+  });
+
+await check("warns that a protected CVar cannot be set by an addon", "wow_cvar_search",
+  { query: "ActionButtonUseKeyDown" }, (b) => has(b, "PROTECTED"));
+
+await check("answers usefully for a CVar the UI never touches", "wow_cvar_search",
+  { query: "cameraDistanceMaxZoomFactor" }, (b) => {
+    // Before the registry was parsed this returned a bare name and nothing
+    // else. The default alone makes it worth asking.
+    has(b, "default:");
+    has(b, "stored:");
+  });
+
+await verify("the CVar parser handles the shapes upstream actually uses", async () => {
+  const { parseCVars } = await import("../dist/sync/api.js");
+
+  const fixture = `
+local CVars = {
+\tvar = {
+\t\t-- var = default, category, account, character, secure, help
+\t\t["plain"] = {"1", 4, true, false, false, "A plain one"},
+\t\t["nilFlags"] = {"0", 1, nil, nil, nil, "Flags may be nil"},
+\t\t["emptyDefault"] = {"", 5, false, false, false, ""},
+\t\t["commaInHelp"] = {"2", 7, false, true, true, "One, two, three"},
+\t\t["urlDefault"] = {"https://example.com/a,b", 6, false, false, false, "Has a comma in the value"},
+\t},
+\tcommand = {
+\t\t-- command = category, help
+\t\t["reloadui"] = {2, "Reloads the UI"},
+\t},
+}
+`;
+
+  const rows = parseCVars(fixture);
+  const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
+
+  assert.equal(rows.length, 5, "console commands must not be counted as CVars");
+  assert.ok(!byName.reloadui, "reloadui is a command, not a CVar");
+
+  assert.deepEqual(byName.plain, {
+    name: "plain", default: "1", category: "Game",
+    account: true, character: false, secure: false, help: "A plain one",
+  });
+  assert.equal(byName.nilFlags.account, false, "nil means not set, not true");
+  assert.equal(byName.emptyDefault.category, "", "category 5 is the unnamed default");
+  assert.equal(byName.emptyDefault.help, undefined, "an empty help string is omitted");
+  assert.equal(byName.commaInHelp.help, "One, two, three", "commas in help survive");
+  assert.equal(byName.commaInHelp.secure, true);
+  assert.equal(byName.urlDefault.default, "https://example.com/a,b", "commas in values survive");
+});
+
+await verify("the shipped registry carries the fields the tool renders", async () => {
+  const { readFile: rf } = await import("node:fs/promises");
+  for (const flavor of ["mainline", "classic", "vanilla"]) {
+    const index = JSON.parse(
+      await rf(new URL(`../data/api-${flavor}.json`, import.meta.url), "utf8"),
+    );
+    const entries = index.cvars.filter((c) => typeof c === "object");
+    assert.ok(entries.length > 1000, `${flavor}: only ${entries.length} CVar entries`);
+    assert.ok(
+      entries.some((c) => c.help) && entries.some((c) => c.secure),
+      `${flavor}: registry is missing help or secure flags`,
+    );
+  }
+});
+
 console.log("\n== Data staleness ==");
 
 await verify("fresh data carries no staleness warning", async () => {
