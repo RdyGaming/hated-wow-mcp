@@ -10,7 +10,7 @@ Lua API** for the client you are targeting, **Blizzard's own shipped UI source**
 so it can see how the game itself does something, and the **game's art and file
 data** so texture references are real rather than invented.
 
-19 tools. Works with Claude Desktop, Claude Code, Cursor, Cline, and anything
+20 tools. Works with Claude Desktop, Claude Code, Cursor, Cline, and anything
 else that speaks MCP — or
 [browse them in a local web UI](#browse-it-without-an-ai-client) with no AI at
 all.
@@ -83,7 +83,8 @@ lookup, linting, TOC/XML validation and scaffolding work the moment you add it**
 — no sync, no waiting.
 
 The UI source corpus and the art/FileDataID lookups are too large to ship, so
-those eight tools need a one-time sync. It needs **git** on your PATH:
+those nine tools — including the CVar lookup — need a one-time sync. It needs
+**git** on your PATH:
 
 ```bash
 npx -y hated-wow-mcp sync all
@@ -108,7 +109,7 @@ You should get a full 18-value signature. Or run the server directly:
 npx hated-wow-mcp --list
 ```
 
-That should print all 19 tools.
+That should print all 20 tools.
 
 ### Where the data lives
 
@@ -142,7 +143,7 @@ npm run sync-all
 npm test
 ```
 
-`npm test` should report **46 passed, 0 failed**. On Windows, `setup.cmd` does
+`npm test` should report **60 passed, 0 failed**. On Windows, `setup.cmd` does
 all five steps and prints the absolute path you need below.
 
 A clone keeps its synced data in `data/` beside the source rather than in the OS
@@ -230,6 +231,7 @@ All settings are optional — see `.env.example`.
 | --- | --- | --- |
 | Lua API index | 6,335 functions, 1,783 events, 1,676 enums/structures, 6,704 globals (retail; Classic and Classic Era indexed separately) | Blizzard's own generated `/api` documentation, mirrored at [Gethe/wow-ui-source](https://github.com/Gethe/wow-ui-source) |
 | UI source | 4,036 files across 348 `Blizzard_*` packages — 4,044 inheritable XML templates, 3,488 mixins, 26,859 mixin methods | Same mirror |
+| CVars | 1,727 registered console variables, 451 of them with usage evidence from Blizzard's own UI | API index + UI source |
 | UI schema | Blizzard's `UI.xsd`, parsed for element/attribute validation | Same mirror |
 | File index | 172,175 interface files including 36,624 icons, mapped to FileDataIDs | [wowdev/wow-listfile](https://github.com/wowdev/wow-listfile) |
 | Atlas index | 17,465 named `SetAtlas` elements with sizes and coordinates | [wago.tools](https://wago.tools) DB2 exports |
@@ -257,6 +259,7 @@ tracks patches without anyone hand-maintaining a list.
 | --- | --- |
 | `wow_ui_template_search` | Find an inheritable XML template, with its inheritance chain |
 | `wow_ui_mixin_search` | Find a mixin by name or by one of its methods |
+| `wow_cvar_search` | Find a CVar, how Blizzard reads it, and what the options screen calls it |
 | `wow_ui_grep` | Regex-search all 4,036 shipped Lua/XML files |
 | `wow_ui_read_file` | Read a shipped source file in context |
 | `wow_ui_list_packages` | List the `Blizzard_*` packages |
@@ -346,6 +349,12 @@ fresh download, and the index is left alone rather than rebuilt — a no-op
 `sync-game-data` finishes in about two seconds. Pass `--force` to ignore the
 cache and rebuild regardless.
 
+**The server tells you when it has gone stale.** Once a synced index is more
+than 30 days old, answers drawn from it carry a one-line warning, and
+`wow_data_status` reports the age of each set. Stale data is the failure mode
+worth catching: a confident answer about a function or texture that a patch has
+since removed is worse than no answer at all.
+
 ### wago.tools access
 
 **Open <https://wago.tools/> in a browser and let it load before running
@@ -359,7 +368,7 @@ normal desktop connection, with any VPN off.
 
 This never blocks the rest of the sync. The file index in the same script comes
 from GitHub and works regardless, and only `wow_atlas_search` depends on the
-atlas step — the other 18 tools are unaffected.
+atlas step — the other 19 tools are unaffected.
 
 ---
 
@@ -380,7 +389,7 @@ src/
   paths.ts             bundled vs. synced data locations
 server.js              local web UI backend (npm run web)
 index.html             local web UI frontend
-test/smoke.mjs         46 end-to-end checks against real data
+test/smoke.mjs         60 end-to-end checks against real data
 data/                  bundled API indexes, plus synced ones in a clone
 ```
 

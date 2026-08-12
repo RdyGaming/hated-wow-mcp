@@ -14,7 +14,15 @@ import {
   cacheRootReason,
   type CacheRootReason,
 } from "../paths.js";
-import { cap, text, type ToolDef } from "./shared.js";
+import { STALE_AFTER_DAYS, ageInDays, cap, text, type ToolDef } from "./shared.js";
+
+/** "  (12 days old)", flagged once it is old enough to be worth doubting. */
+function age(generatedAt: string): string {
+  const days = ageInDays(generatedAt);
+  if (days === null) return "";
+  if (days < STALE_AFTER_DAYS) return `  (${days} day${days === 1 ? "" : "s"} old)`;
+  return `  (${days} days old — STALE, re-sync recommended)`;
+}
 
 /** Why the synced data landed where it did, in words a user can act on. */
 const CACHE_ROOT_REASONS: Record<CacheRootReason, string> = {
@@ -27,6 +35,7 @@ const CACHE_ROOT_REASONS: Record<CacheRootReason, string> = {
 export const gameDataTools: ToolDef[] = [
   {
     name: "wow_file_search",
+    dataset: "gamedata",
     config: {
       title: "Look up game files and FileDataIDs",
       description:
@@ -92,6 +101,7 @@ export const gameDataTools: ToolDef[] = [
 
   {
     name: "wow_icon_search",
+    dataset: "gamedata",
     config: {
       title: "Find an icon texture",
       description:
@@ -140,6 +150,7 @@ export const gameDataTools: ToolDef[] = [
 
   {
     name: "wow_atlas_search",
+    dataset: "gamedata",
     config: {
       title: "Find a texture atlas element",
       description:
@@ -204,7 +215,7 @@ export const gameDataTools: ToolDef[] = [
         const files = loadFiles();
         lines.push(
           "  File index",
-          `    synced:   ${files.raw.generatedAt}`,
+          `    synced:   ${files.raw.generatedAt}${age(files.raw.generatedAt)}`,
           `    source:   ${files.raw.source}`,
           `    contents: ${files.raw.counts.interface} interface files, ` +
             `${files.raw.counts.icons} icons, ${files.raw.counts.total} total known`,
@@ -219,7 +230,7 @@ export const gameDataTools: ToolDef[] = [
         const atlas = loadAtlas();
         lines.push(
           "  Atlas index",
-          `    synced:   ${atlas.raw.generatedAt}`,
+          `    synced:   ${atlas.raw.generatedAt}${age(atlas.raw.generatedAt)}`,
           `    build:    ${atlas.raw.build}`,
           `    contents: ${atlas.raw.counts.atlases} elements across ${atlas.raw.counts.sheets} sheets`,
           "",

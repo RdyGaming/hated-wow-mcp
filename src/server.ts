@@ -1,21 +1,72 @@
+import { readFileSync } from "node:fs";
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+import { loadAtlasGeneratedAt, loadFilesGeneratedAt } from "./gamedata/files.js";
+import { PKG_ROOT } from "./paths.js";
 import { apiTools } from "./tools/api.tools.js";
 import { devTools } from "./tools/dev.tools.js";
 import { gameDataTools } from "./tools/gamedata.tools.js";
-import { errorText, type ToolDef } from "./tools/shared.js";
+import { errorText, stalenessNote, type ToolDef } from "./tools/shared.js";
+import { loadUiSourceGeneratedAt } from "./uisource/index.js";
+
 import { uiSourceTools } from "./tools/uisource.tools.js";
+
+/**
+ * Read from package.json rather than repeated here — it was hardcoded once and
+ * spent three releases reporting 0.1.0 to every client that asked.
+ */
+const SERVER_VERSION: string = (() => {
+  try {
+    return (
+      JSON.parse(readFileSync(`${PKG_ROOT}/package.json`, "utf8")) as { version?: string }
+    ).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
+
+/**
+ * Appends the staleness warning to tools that answer from synced data.
+ *
+ * Doing it here rather than in each handler means a tool added later gets the
+ * behaviour by declaring `dataset`, and cannot forget to. Successful answers
+ * only: an error already tells the caller what to do.
+ */
+function withStalenessNote(tool: ToolDef): ToolDef {
+  if (!tool.dataset) return tool;
+
+  return {
+    ...tool,
+    handler: async (args) => {
+      const result = await tool.handler(args);
+      if (result.isError) return result;
+
+      const generatedAt =
+        tool.dataset === "uisource"
+          ? loadUiSourceGeneratedAt()
+          : (loadFilesGeneratedAt() ?? loadAtlasGeneratedAt());
+      const note = stalenessNote(generatedAt, tool.dataset!);
+      if (!note) return result;
+
+      const content = [...result.content];
+      const last = content[content.length - 1];
+      if (last) content[content.length - 1] = { ...last, text: last.text + note };
+      return { ...result, content };
+    },
+  };
+}
 
 export const ALL_TOOLS: ToolDef[] = [
   ...apiTools,
   ...uiSourceTools,
   ...devTools,
   ...gameDataTools,
-];
+].map(withStalenessNote);
 
 export function createServer(): McpServer {
   const server = new McpServer(
-    { name: "hated-wow-mcp", version: "0.1.0" },
+    { name: "hated-wow-mcp", version: SERVER_VERSION },
     {
       instructions: [
         "This server exposes World of Warcraft addon development knowledge: the",

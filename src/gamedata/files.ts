@@ -202,3 +202,24 @@ export function renderAtlasEntry(entry: AtlasEntry, files?: LoadedFiles): string
   }
   return lines.join("\n");
 }
+
+/**
+ * Build timestamps for the two game-data indexes, or undefined when a set is
+ * not synced. Neither throws: these annotate answers, and a missing annotation
+ * must not turn a working answer into an error.
+ */
+export function loadFilesGeneratedAt(): string | undefined {
+  try {
+    return loadFiles().raw.generatedAt;
+  } catch {
+    return undefined;
+  }
+}
+
+export function loadAtlasGeneratedAt(): string | undefined {
+  try {
+    return loadAtlas().raw.generatedAt;
+  } catch {
+    return undefined;
+  }
+}

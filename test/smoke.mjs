@@ -382,6 +382,65 @@ console.log("\n== Generated output is itself valid ==");
     (b) => lacks(b, "error  "));
 }
 
+console.log("\n== Console variables ==");
+
+await check("finds a CVar with its options-UI label", "wow_cvar_search",
+  { query: "colorblindMode" }, (b) => {
+    has(b, "colorblindMode");
+    has(b, "USE_COLORBLIND_MODE");
+    // The label is a GlobalString key, not text — the localized string lives in
+    // the client. Claiming otherwise would be the kind of confident-but-wrong
+    // answer this server exists to avoid.
+    has(b, '_G["USE_COLORBLIND_MODE"]');
+  });
+
+await check("infers the value shape from how Blizzard reads it", "wow_cvar_search",
+  { query: "colorblindMode" }, (b) => has(b, "boolean"));
+
+await check("reports a CVar the UI never touches rather than hiding it", "wow_cvar_search",
+  { query: "nameplateShowOnlyNameForFriendlyPlayerUnits" }, (b) =>
+    has(b, "never touches it"));
+
+await check("usedOnly drops registry-only entries", "wow_cvar_search",
+  { query: "nameplate", usedOnly: true, limit: 20 }, (b) =>
+    lacks(b, "never touches it"));
+
+await check("explains itself when nothing matches", "wow_cvar_search",
+  { query: "zzzzNotARealCVar" }, (b) => has(b, "No CVar matching"));
+
+console.log("\n== Data staleness ==");
+
+await verify("fresh data carries no staleness warning", async () => {
+  const result = await byName.get("wow_cvar_search").handler({ query: "colorblindMode" });
+  const body = result.content.map((c) => c.text).join("\n");
+  assert.ok(
+    !body.includes("This answer comes from data synced"),
+    "synced today, so nothing should be flagged as stale",
+  );
+});
+
+await verify("the note fires past the threshold, and not before", async () => {
+  const { stalenessNote, STALE_AFTER_DAYS } = await import("../dist/tools/shared.js");
+  const daysAgo = (n) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  assert.equal(stalenessNote(daysAgo(STALE_AFTER_DAYS - 1), "uisource"), "", "just inside");
+  assert.match(stalenessNote(daysAgo(STALE_AFTER_DAYS + 1), "uisource"), /UI source sync/);
+  assert.match(stalenessNote(daysAgo(400), "gamedata"), /game data sync/);
+  assert.equal(stalenessNote(undefined, "uisource"), "", "unsynced data has no age to report");
+  assert.equal(stalenessNote("not a date", "uisource"), "", "an unparseable date is not a warning");
+});
+
+await verify("every synced-data tool declares its dataset", async () => {
+  const { ALL_TOOLS: tools } = await import("../dist/server.js");
+  const SYNCED = [
+    "wow_ui_template_search", "wow_ui_mixin_search", "wow_cvar_search",
+    "wow_ui_grep", "wow_ui_read_file", "wow_ui_list_packages",
+    "wow_file_search", "wow_icon_search", "wow_atlas_search",
+  ];
+  const missing = SYNCED.filter((n) => !tools.find((t) => t.name === n)?.dataset);
+  assert.deepEqual(missing, [], `these would never warn when their data goes stale: ${missing}`);
+});
+
 console.log("\n== Local install ==");
 
 await check("install info answers without an install present", "wow_install_info", {}, (b) =>
