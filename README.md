@@ -8,7 +8,9 @@ so it can see how the game itself does something, and the **game's art and file
 data** so texture references are real rather than invented.
 
 19 tools. Works with Claude Desktop, Claude Code, Cursor, Cline, and anything
-else that speaks MCP.
+else that speaks MCP — or
+[browse them in a local web UI](#browse-it-without-an-ai-client) with no AI at
+all.
 
 > ### ☕ Support this project
 > Hated WoW MCP is free and always will be. If it saves you time, you can buy me
@@ -115,6 +117,47 @@ You should get a full 18-value signature. Or run the server directly:
 ```bash
 npm run list-tools
 ```
+
+---
+
+## Browse it without an AI client
+
+Every tool also runs in a local web UI — no assistant, no API key, no tokens.
+Useful for looking something up quickly, or for checking what a tool returns
+before you wire it into a prompt.
+
+```bash
+npm run web
+```
+
+Then open **<http://localhost:3001>**.
+
+Pick a tool from the sidebar and it builds the form for you: the fields, their
+types, and the help text all come from the tool's own schema, so the UI always
+matches what the tool actually accepts. Results render in a Monaco editor with
+a copy button.
+
+This talks to the tools directly — it does **not** speak the MCP protocol, so
+nothing here interferes with the server your assistant is using. Both can run
+at the same time.
+
+Two things worth knowing:
+
+- **Run `npm run sync-all` first.** The UI is only as complete as your synced
+  data; without it the UI source and game data tools return nothing.
+- **Art tools show paths, not pictures.** `wow_icon_search` and friends return
+  FileDataIDs and texture paths — there is no BLP decoding (see
+  [Known limits](#known-limits)). Paste a FileDataID into
+  [wago.tools](https://wago.tools) to see the actual image.
+
+Set `PORT` if 3001 is taken:
+
+```bash
+PORT=4000 npm run web
+```
+
+The UI's dependencies (`express`, `cors`) are dev dependencies — a normal
+`npm install` picks them up, and the MCP server itself never imports them.
 
 ---
 
@@ -266,6 +309,8 @@ src/
   scaffold/            addon generator
   tools/               MCP tool definitions
 scripts/               the three sync scripts
+server.js              local web UI backend (npm run web)
+index.html             local web UI frontend
 test/smoke.mjs         46 end-to-end checks against real data
 data/                  generated indexes (see .gitignore)
 ```

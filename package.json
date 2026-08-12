@@ -34,6 +34,7 @@
     "sync-ui-source": "tsx scripts/sync-ui-source.ts",
     "sync-game-data": "tsx scripts/sync-game-data.ts",
     "sync-all": "npm run sync-api && npm run sync-ui-source && npm run sync-game-data",
+    "web": "node server.js",
     "test": "node test/smoke.mjs",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
   },
@@ -55,6 +56,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
