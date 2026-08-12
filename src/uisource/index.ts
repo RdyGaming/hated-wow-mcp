@@ -28,6 +28,26 @@ export interface UiMixin {
   line: number;
 }
 
+export interface UiCVar {
+  name: string;
+  /** How many times Blizzard's own code touches it. */
+  refs: number;
+  /** The busiest files that touch it, most references first. */
+  files: string[];
+  /** Accessors used on it — GetCVarBool implies a boolean, and so on. */
+  accessors: string[];
+  /** From `Settings.VarType.*` when the options UI registers it. */
+  varType?: string;
+  /**
+   * GlobalString *key* for the options-UI label — not the text. The localized
+   * string lives in the client, not in the source export, so the key is as far
+   * as this can honestly go. In game, `_G[key]` gives the player-visible label.
+   */
+  labelKey?: string;
+  /** GlobalString key for the options-UI tooltip. Same caveat as labelKey. */
+  tooltipKey?: string;
+}
+
 export interface UiSourceIndex {
   flavor: string;
   branch: string;
@@ -40,6 +60,8 @@ export interface UiSourceIndex {
   templates: UiTemplate[];
   mixins: UiMixin[];
   globalStrings: Record<string, string>;
+  /** Added in 0.3.0 — absent in indexes built by an older sync. */
+  cvars?: UiCVar[];
 }
 
 export interface LoadedUiSource {
@@ -113,6 +135,19 @@ export function loadUiSource(flavor: Flavor): LoadedUiSource {
     );
   }
   return loaded;
+}
+
+/**
+ * When the UI source index was built, or undefined if it is not synced. Never
+ * throws: this exists to annotate answers, and failing to annotate must not
+ * turn a working answer into an error.
+ */
+export function loadUiSourceGeneratedAt(): string | undefined {
+  try {
+    return Object.values(loadAll())[0]?.generatedAt;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

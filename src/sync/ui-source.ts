@@ -119,6 +119,22 @@ export interface UiMixin {
   line: number;
 }
 
+export interface UiCVar {
+  name: string;
+  /** How many times Blizzard's own code touches it. */
+  refs: number;
+  /** Files that touch it, most references first. */
+  files: string[];
+  /** Accessors used on it — GetCVarBool implies a boolean, and so on. */
+  accessors: string[];
+  /** From `Settings.VarType.*` when the options UI registers it. */
+  varType?: string;
+  /** GlobalString key for the options-UI label, when there is one. */
+  labelKey?: string;
+  /** GlobalString key for the options-UI tooltip, when there is one. */
+  tooltipKey?: string;
+}
+
 export interface UiSourceIndex {
   flavor: string;
   branch: string;
@@ -132,6 +148,8 @@ export interface UiSourceIndex {
   mixins: UiMixin[];
   /** Global strings from GlobalStrings-style files: NAME -> localized text. */
   globalStrings: Record<string, string>;
+  /** CVars Blizzard's own UI reads or writes. Added in 0.3.0. */
+  cvars: UiCVar[];
 }
 
 function walk(dir: string, root: string, out: string[]): void {
@@ -238,6 +256,71 @@ function indexGlobalStrings(source: string): Record<string, string> {
   return out;
 }
 
+/** Accumulator for one CVar while a flavor is being indexed. */
+interface CVarAccumulator {
+  refs: number;
+  /** File path -> reference count, so the busiest files can be reported. */
+  files: Map<string, number>;
+  accessors: Set<string>;
+  varType?: string;
+  labelKey?: string;
+  tooltipKey?: string;
+}
+
+/**
+ * Finds the CVars Blizzard's own UI touches.
+ *
+ * Two passes, because they answer different questions. Every `GetCVar`/
+ * `SetCVar` call says a CVar is real and where it is used; the `Settings.*`
+ * registrations say what the options UI calls it, which is the part a human
+ * actually recognises. `RegisterCVar` is not a useful source of defaults here —
+ * Blizzard registers CVars in C++, and the Lua source contains exactly one
+ * call — so this deliberately does not claim to know default values.
+ */
+function indexCVars(
+  source: string,
+  file: string,
+  into: Map<string, CVarAccumulator>,
+): void {
+  const get = (name: string): CVarAccumulator => {
+    let entry = into.get(name);
+    if (!entry) {
+      entry = { refs: 0, files: new Map(), accessors: new Set() };
+      into.set(name, entry);
+    }
+    return entry;
+  };
+
+  // Pass 1: any accessor called with a literal CVar name.
+  const ACCESSOR = /\b(?:C_CVar\.)?((?:Set|Get|Register)CVar[A-Za-z]*)\s*\(\s*"([^"]+)"/g;
+  for (const m of source.matchAll(ACCESSOR)) {
+    const entry = get(m[2]!);
+    entry.refs++;
+    entry.accessors.add(m[1]!);
+    entry.files.set(file, (entry.files.get(file) ?? 0) + 1);
+  }
+
+  // Pass 2: options-UI registrations, for the type and the display strings.
+  const SETTING = /Settings\.(?:SetupCVar[A-Za-z]*|RegisterCVarSetting)\s*\(([^)]*)\)/g;
+  for (const m of source.matchAll(SETTING)) {
+    const args = m[1]!;
+    const name = /"([^"]+)"/.exec(args)?.[1];
+    // Some registrations pass the name as a constant rather than a literal.
+    // Those cannot be resolved without evaluating Lua, so skip them.
+    if (!name) continue;
+
+    const entry = get(name);
+    entry.varType ??= /Settings\.VarType\.(\w+)/.exec(args)?.[1];
+
+    // The trailing arguments are GlobalString keys. Which is which is not
+    // positional across the four registration helpers, but the tooltip always
+    // says so in its name.
+    const identifiers = [...args.matchAll(/\b([A-Z][A-Z0-9_]{3,})\b/g)].map((i) => i[1]!);
+    entry.tooltipKey ??= identifiers.find((id) => id.includes("TOOLTIP"));
+    entry.labelKey ??= identifiers.find((id) => !id.includes("TOOLTIP"));
+  }
+}
+
 async function buildIndex(flavor: string): Promise<UiSourceIndex> {
   const branch = BRANCHES[flavor];
   if (!branch) throw new Error(`unknown flavor: ${flavor}`);
@@ -254,6 +337,7 @@ async function buildIndex(flavor: string): Promise<UiSourceIndex> {
   const templates: UiTemplate[] = [];
   const mixins: UiMixin[] = [];
   let globalStrings: Record<string, string> = {};
+  const cvarAcc = new Map<string, CVarAccumulator>();
   const packages = new Set<string>();
 
   for (const abs of absFiles) {
@@ -280,6 +364,7 @@ async function buildIndex(flavor: string): Promise<UiSourceIndex> {
       templates.push(...indexTemplates(source, rel));
     } else if (ext === "lua") {
       mixins.push(...indexMixins(source, rel));
+      indexCVars(source, rel, cvarAcc);
       if (/GlobalStrings|Constants/i.test(rel)) {
         globalStrings = { ...globalStrings, ...indexGlobalStrings(source) };
       }
@@ -309,6 +394,24 @@ async function buildIndex(flavor: string): Promise<UiSourceIndex> {
   templates.sort((a, b) => a.name.localeCompare(b.name));
   files.sort((a, b) => a.path.localeCompare(b.path));
 
+  // Keep only the busiest few files per CVar: the point is "where do I look to
+  // see how this is used", and a full list for a CVar touched in 40 places is
+  // noise that would also bloat the index.
+  const cvars: UiCVar[] = [...cvarAcc.entries()]
+    .map(([name, acc]) => ({
+      name,
+      refs: acc.refs,
+      files: [...acc.files.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 5)
+        .map(([path]) => path),
+      accessors: [...acc.accessors].sort(),
+      ...(acc.varType ? { varType: acc.varType } : {}),
+      ...(acc.labelKey ? { labelKey: acc.labelKey } : {}),
+      ...(acc.tooltipKey ? { tooltipKey: acc.tooltipKey } : {}),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return {
     flavor,
     branch,
@@ -322,12 +425,14 @@ async function buildIndex(flavor: string): Promise<UiSourceIndex> {
       mixins: finalMixins.length,
       mixinMethods: finalMixins.reduce((n, m) => n + m.methods.length, 0),
       globalStrings: Object.keys(globalStrings).length,
+      cvars: cvars.length,
     },
     packages: [...packages].sort(),
     files,
     templates,
     mixins: finalMixins,
     globalStrings,
+    cvars,
   };
 }
 

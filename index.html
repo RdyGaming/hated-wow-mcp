@@ -127,9 +127,12 @@
       loadTools();
     });
 
+    // The last group is a catch-all, so a tool that matches nothing lands in
+    // "Game data and art" whether or not it belongs there. Name new tools with a
+    // known prefix, or list them here.
     const GROUPS = [
       ["API reference",        (n) => n.startsWith("wow_api_")],
-      ["Blizzard UI source",   (n) => n.startsWith("wow_ui_")],
+      ["Blizzard UI source",   (n) => n.startsWith("wow_ui_") || n === "wow_cvar_search"],
       ["Authoring",            (n) => ["wow_lua_lint","wow_xml_validate","wow_toc_validate","wow_addon_scaffold","wow_install_info"].includes(n)],
       ["Game data and art",    () => true],
     ];

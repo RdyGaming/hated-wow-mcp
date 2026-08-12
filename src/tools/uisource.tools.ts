@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { FLAVOR_IDS, resolveFlavor } from "../config.js";
 import { loadUiSource, readUiFile } from "../uisource/index.js";
+import { renderCVar, searchCVars } from "../uisource/cvars.js";
 import {
   grepUiSource,
   renderMixin,
@@ -9,6 +10,7 @@ import {
   searchMixins,
   searchTemplates,
 } from "../uisource/search.js";
+import { loadIndex } from "../wowapi/index.js";
 import { cap, text, type ToolDef } from "./shared.js";
 
 const flavorArg = z.enum(FLAVOR_IDS).optional().describe("Game client. Defaults to retail.");
@@ -16,6 +18,7 @@ const flavorArg = z.enum(FLAVOR_IDS).optional().describe("Game client. Defaults 
 export const uiSourceTools: ToolDef[] = [
   {
     name: "wow_ui_template_search",
+    dataset: "uisource",
     config: {
       title: "Search Blizzard's XML frame templates",
       description:
@@ -60,6 +63,7 @@ export const uiSourceTools: ToolDef[] = [
 
   {
     name: "wow_ui_mixin_search",
+    dataset: "uisource",
     config: {
       title: "Search Blizzard's Lua mixins",
       description:
@@ -89,7 +93,72 @@ export const uiSourceTools: ToolDef[] = [
   },
 
   {
+    name: "wow_cvar_search",
+    dataset: "uisource",
+    config: {
+      title: "Look up console variables (CVars)",
+      description:
+        "Find the game's console variables — the settings behind SetCVar/GetCVar. " +
+        "Covers every CVar the client registers, and for the ones Blizzard's own " +
+        "UI touches, shows how it reads them, where, and what the options screen " +
+        "calls them. Use this before writing SetCVar, or to discover which CVar " +
+        "controls a piece of game behaviour.",
+      inputSchema: {
+        query: z.string().describe("CVar name or fragment, e.g. nameplate, cameraDistance."),
+        flavor: flavorArg,
+        usedOnly: z
+          .boolean()
+          .optional()
+          .describe("Only CVars Blizzard's own UI reads or writes — the documented-by-example ones."),
+        limit: z.number().int().min(1).max(100).optional(),
+      },
+    },
+    handler: async ({ query, flavor, usedOnly, limit }) => {
+      const resolved = resolveFlavor(flavor as string | undefined);
+      const api = loadIndex(resolved);
+
+      // The UI source is optional here: the registry alone still answers "does
+      // this CVar exist", which is most of the value, so a missing sync degrades
+      // rather than fails.
+      let used;
+      let sourceNote = "";
+      try {
+        used = loadUiSource(resolved).raw.cvars;
+        if (!used) {
+          sourceNote =
+            "\n\nUsage details need a newer UI source index — re-run the sync to add them.";
+        }
+      } catch {
+        sourceNote =
+          "\n\nOnly the CVar registry is loaded; sync the Blizzard UI source to see " +
+          "how the game itself uses these.";
+      }
+
+      let hits = searchCVars(query as string, api.cvarSet, used, (limit as number) ?? 20);
+      if (usedOnly) hits = hits.filter((h) => h.refs > 0);
+
+      if (hits.length === 0) {
+        return text(
+          `No CVar matching "${query}" in ${resolved.label}.` +
+            "\n\nCVar names are case-insensitive here but often camelCase in game " +
+            "(nameplateShowAll, cameraDistanceMaxZoomFactor). Try a shorter fragment." +
+            sourceNote,
+        );
+      }
+
+      return text(
+        cap(
+          `${hits.length} CVar(s) matching "${query}" in ${resolved.label}:\n\n` +
+            hits.map(renderCVar).join("\n\n") +
+            sourceNote,
+        ),
+      );
+    },
+  },
+
+  {
     name: "wow_ui_grep",
+    dataset: "uisource",
     config: {
       title: "Search Blizzard's UI source code",
       description:
@@ -151,6 +220,7 @@ export const uiSourceTools: ToolDef[] = [
 
   {
     name: "wow_ui_read_file",
+    dataset: "uisource",
     config: {
       title: "Read a file from Blizzard's UI source",
       description:
@@ -193,6 +263,7 @@ export const uiSourceTools: ToolDef[] = [
 
   {
     name: "wow_ui_list_packages",
+    dataset: "uisource",
     config: {
       title: "List Blizzard's shipped UI packages",
       description:
