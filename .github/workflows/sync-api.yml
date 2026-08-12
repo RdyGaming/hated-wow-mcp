@@ -33,8 +33,16 @@ jobs:
             echo "API index unchanged — nothing to commit."
             exit 0
           fi
+
+          # Summarise the change before staging, while HEAD still has the old
+          # manifest to compare against.
+          git show HEAD:data/manifest.json > /tmp/manifest-before.json 2>/dev/null || true
+          node .github/scripts/manifest-diff.mjs \
+            /tmp/manifest-before.json data/manifest.json > /tmp/commit-message.txt
+          cat /tmp/commit-message.txt
+
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/
-          git commit -m "chore(data): sync WoW API index"
+          git commit -F /tmp/commit-message.txt
           git push
