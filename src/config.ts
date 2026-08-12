@@ -267,6 +267,17 @@ export const DATA_PATHS = {
  * the README recommends for putting the data on another drive — would otherwise
  * be told to run a package script it does not have.
  */
+/**
+ * What to tell someone whose *bundled* data will not load. The API indexes and
+ * the XSD ship inside the package, so failing to read one means a damaged
+ * install rather than a missing sync — and only a checkout can regenerate them.
+ */
+export function bundledDataMessage(): string {
+  return isCheckout()
+    ? "Run `npm run sync-api` to rebuild it."
+    : "Reinstall the package: `npm install hated-wow-mcp@latest`.";
+}
+
 export function dataMissingMessage(what: string, sync: string): string {
   const command = isCheckout()
     ? `npm run sync-${sync}`

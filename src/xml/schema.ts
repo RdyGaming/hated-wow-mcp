@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { XMLParser } from "fast-xml-parser";
 
-import { DATA_DIR } from "../config.js";
+import { DATA_DIR, bundledDataMessage } from "../config.js";
 
 /**
  * A digest of Blizzard's UI.xsd, reduced to the questions a validator actually
@@ -11,7 +11,7 @@ import { DATA_DIR } from "../config.js";
  * each accepts (with enumerated values where the schema restricts them).
  *
  * Parsing the XSD at startup rather than shipping a hand-written table means
- * the validator tracks whatever `npm run sync-data` last pulled, so new frame
+ * the validator tracks whatever `npm run sync-api` last pulled, so new frame
  * types and attributes do not need a code change.
  */
 export interface SchemaElement {
@@ -68,7 +68,7 @@ export function loadUiSchema(): UiSchema {
     xsd = readFileSync(path, "utf8");
   } catch (err) {
     throw new Error(
-      `Could not read the UI schema at ${path}. Run \`npm run sync-data\`. ` +
+      `Could not read the UI schema at ${path}. ${bundledDataMessage()} ` +
         `Cause: ${(err as Error).message}`,
     );
   }

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { DATA_DIR, type Flavor } from "../config.js";
+import { DATA_DIR, bundledDataMessage, type Flavor } from "../config.js";
 import type { ApiEvent, ApiFunction, ApiIndex, ApiTable } from "./types.js";
 
 /**
@@ -49,7 +49,7 @@ export function loadIndex(flavor: Flavor): LoadedIndex {
   } catch (err) {
     throw new Error(
       `Could not load the bundled API index for "${key}" (${file}). ` +
-        `Run \`npm run sync-data\` to rebuild it. Cause: ${(err as Error).message}`,
+        `${bundledDataMessage()} Cause: ${(err as Error).message}`,
     );
   }
 

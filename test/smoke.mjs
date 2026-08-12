@@ -6,6 +6,8 @@
  * asserts on real content rather than on shapes.
  */
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { readFile, readdir } from "node:fs/promises";
 
 import { ALL_TOOLS } from "../dist/server.js";
 
@@ -48,6 +50,19 @@ async function check(label, toolName, args, assertion) {
     const result = await tool.handler(args);
     const body = result.content.map((c) => c.text).join("\n");
     assertion(body, result);
+    passed++;
+    process.stdout.write(`  ok    ${label}\n`);
+  } catch (err) {
+    failed++;
+    failures.push(`${label}: ${err.message}`);
+    process.stdout.write(`  FAIL  ${label}\n        ${err.message.split("\n")[0]}\n`);
+  }
+}
+
+/** For assertions that are not a tool call — the same reporting, no handler. */
+async function verify(label, fn) {
+  try {
+    await fn();
     passed++;
     process.stdout.write(`  ok    ${label}\n`);
   } catch (err) {
@@ -371,6 +386,136 @@ console.log("\n== Local install ==");
 
 await check("install info answers without an install present", "wow_install_info", {}, (b) =>
   assert.ok(b.length > 0, "should always produce output"));
+
+// ---------------------------------------------------------------------------
+// Suggested commands
+//
+// 0.2.0 shipped `npx hated-wow-mcp-sync ui-source` in the message users hit the
+// first time they called an unsynced tool. It 404s: npx resolves a bare command
+// to a *package* of that name, and hated-wow-mcp-sync is a bin, not a package.
+// Nothing caught it, because a wrong instruction is a string — every tool still
+// behaved correctly while telling people to type something that cannot work.
+//
+// So: find every command this project tells a user to run, in the shipped code
+// and in the README, and check it is actually runnable.
+// ---------------------------------------------------------------------------
+
+console.log("\n== Suggested commands are runnable ==");
+
+const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+const binNames = Object.keys(pkg.bin ?? {});
+const SYNC_TARGETS = ["api", "ui-source", "game-data", "all"];
+
+/**
+ * Only what a user can actually see. Comments in the shipped JS discuss the
+ * broken forms on purpose — explaining why `npx hated-wow-mcp-sync` cannot work
+ * requires writing it down — so scanning them would flag the explanation as the
+ * defect. The `//` strip skips `://` so URLs inside strings survive.
+ */
+const stripComments = (js) =>
+  js.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:/])\/\/[^\n]*/g, "$1");
+
+/** Every shipped .js plus the README — anywhere a command string can hide. */
+async function sourcesToScan() {
+  const files = [];
+  async function walk(dir) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, dir);
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.name.endsWith(".js")) files.push(path);
+    }
+  }
+  await walk(new URL("../dist/", import.meta.url));
+  files.push(new URL("../README.md", import.meta.url));
+
+  return Promise.all(
+    files.map(async (url) => {
+      const raw = await readFile(url, "utf8");
+      return { url, text: url.pathname.endsWith(".js") ? stripComments(raw) : raw };
+    }),
+  );
+}
+
+const sources = await sourcesToScan();
+const label = (url) => url.pathname.split("/").slice(-2).join("/");
+
+await verify("every `npm run` command names a real package script", () => {
+  const bad = [];
+  for (const { url, text } of sources) {
+    for (const m of text.matchAll(/npm run ([a-z0-9:_-]+)/g)) {
+      // `npm run sync-${name}` builds the script name at runtime, so the literal
+      // half is not a script and never will be. The command that template
+      // actually produces is checked below by calling the function itself.
+      if (text.startsWith("${", m.index + m[0].length)) continue;
+      if (!pkg.scripts?.[m[1]]) bad.push(`${label(url)}: npm run ${m[1]}`);
+    }
+  }
+  assert.deepEqual(bad, [], `commands naming a script that does not exist:\n  ${bad.join("\n  ")}`);
+});
+
+await verify("no npx command names a bin that is not the package", () => {
+  const bad = [];
+  for (const { url, text } of sources) {
+    // `npx -p <pkg> <bin>` is legitimate — the -p names the package to fetch,
+    // so the bin after it does not need to be resolvable on its own.
+    for (const m of text.matchAll(/npx\s+(?:-y\s+|--yes\s+)?(?!-p\b|--package\b)([@a-z0-9._/-]+)/g)) {
+      const token = m[1].replace(/@[^@/]*$/, ""); // strip @latest / @0.2.2
+      if (token !== pkg.name && binNames.includes(token)) {
+        bad.push(`${label(url)}: npx ${m[1]}`);
+      }
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    "npx resolves a bare command to a package of that name, so a bin name " +
+      `that is not "${pkg.name}" cannot work:\n  ${bad.join("\n  ")}`,
+  );
+});
+
+await verify("every `<pkg> sync <target>` names a real sync", () => {
+  const bad = [];
+  const escaped = pkg.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const { url, text } of sources) {
+    for (const [, target] of text.matchAll(
+      new RegExp(`${escaped}(?:@[^\\s]+)?\\s+sync\\s+([a-z0-9-]+)`, "g"),
+    )) {
+      if (!SYNC_TARGETS.includes(target)) bad.push(`${label(url)}: sync ${target}`);
+    }
+  }
+  assert.deepEqual(bad, [], `unknown sync targets:\n  ${bad.join("\n  ")}`);
+});
+
+await verify("the sync dispatcher still implements every target", async () => {
+  const dispatcher = await readFile(new URL("../dist/sync/index.js", import.meta.url), "utf8");
+  for (const target of SYNC_TARGETS) {
+    assert.ok(dispatcher.includes(`"${target}"`), `dispatcher no longer handles "${target}"`);
+  }
+});
+
+await verify("every declared bin exists in the build", async () => {
+  for (const [name, rel] of Object.entries(pkg.bin ?? {})) {
+    const target = new URL(`../${rel}`, import.meta.url);
+    assert.ok(existsSync(target), `bin "${name}" points at missing ${rel}`);
+  }
+});
+
+await verify("the missing-data message suggests a command that resolves", async () => {
+  const { dataMissingMessage } = await import("../dist/config.js");
+  const message = dataMissingMessage("test", "ui-source");
+  const command = message.match(/Run `([^`]+)`/)?.[1];
+  assert.ok(command, `no command found in:\n${message}`);
+
+  if (command.startsWith("npm run ")) {
+    const script = command.slice("npm run ".length);
+    assert.ok(pkg.scripts?.[script], `suggests missing script "${script}"`);
+  } else {
+    const parts = command.split(/\s+/).filter((p) => p !== "npx" && p !== "-y");
+    assert.equal(parts[0], pkg.name, `suggests "${parts[0]}", which npx cannot resolve`);
+    assert.equal(parts[1], "sync", `expected a sync subcommand, got "${parts[1]}"`);
+    assert.ok(SYNC_TARGETS.includes(parts[2]), `unknown sync target "${parts[2]}"`);
+  }
+});
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 if (failures.length) {

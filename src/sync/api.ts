@@ -13,8 +13,8 @@
  *                                  Resources/CVars.lua
  *
  * Usage:
- *   npm run sync-data                 # all flavors
- *   npm run sync-data -- mainline     # one flavor
+ *   npm run sync-api                 # all flavors
+ *   npm run sync-api -- mainline     # one flavor
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
