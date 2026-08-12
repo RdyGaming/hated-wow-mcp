@@ -40,6 +40,7 @@
     "sync-all": "npm run sync-api && npm run sync-ui-source && npm run sync-game-data",
     "web": "node server.js",
     "test": "node test/smoke.mjs",
+    "prepublishOnly": "npm run build && npm test",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
   },
   "keywords": [
