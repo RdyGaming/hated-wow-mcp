@@ -1,7 +1,7 @@
 {
   "name": "hated-wow-mcp",
-  "version": "0.4.0",
-  "description": "Hated WoW MCP — an MCP server for World of Warcraft addon development: the in-game Lua API, Blizzard's shipped UI source, and game art/file data.",
+  "version": "0.4.1",
+  "description": "MCP server for World of Warcraft addon development — 20 tools giving Claude, Cursor and any MCP client the in-game Lua API, Blizzard's shipped UI source, CVars, FileDataIDs and texture atlases, plus Lua linting, TOC/XML validation and addon scaffolding. Retail, Classic and Classic Era.",
   "author": "Hated Gaming",
   "type": "module",
   "bin": {
@@ -45,13 +45,21 @@
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
+    "claude",
+    "claude-code",
+    "cursor",
     "world-of-warcraft",
     "wow",
+    "warcraft",
+    "wow-addon",
     "addon",
     "lua",
     "blizzard",
-    "battle.net"
+    "framexml",
+    "cvars",
+    "filedataid"
   ],
   "license": "MIT",
   "dependencies": {
