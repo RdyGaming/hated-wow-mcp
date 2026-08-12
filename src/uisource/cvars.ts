@@ -16,11 +16,14 @@
  */
 
 import { scoreName } from "../wowapi/search.js";
+import type { ApiCVar } from "../wowapi/types.js";
 import type { UiCVar } from "./index.js";
 
 export interface CVarHit extends UiCVar {
   /** True when the client's own CVar registry lists this name. */
   known: boolean;
+  /** The registry entry — default, category, scope, protection, description. */
+  registry?: ApiCVar;
 }
 
 /** A registry name we have no usage evidence for. */
@@ -31,16 +34,26 @@ function bare(name: string, known: boolean): CVarHit {
 export function searchCVars(
   query: string,
   registry: Set<string>,
+  registryByName: Map<string, ApiCVar>,
   used: UiCVar[] | undefined,
   limit: number,
 ): CVarHit[] {
   const byName = new Map<string, CVarHit>();
 
   for (const cvar of used ?? []) {
-    byName.set(cvar.name.toLowerCase(), { ...cvar, known: registry.has(cvar.name) });
+    const key = cvar.name.toLowerCase();
+    const entry = registryByName.get(key);
+    byName.set(key, {
+      ...cvar,
+      known: registry.has(cvar.name),
+      ...(entry ? { registry: entry } : {}),
+    });
   }
   for (const name of registry) {
-    if (!byName.has(name.toLowerCase())) byName.set(name.toLowerCase(), bare(name, true));
+    const key = name.toLowerCase();
+    if (byName.has(key)) continue;
+    const entry = registryByName.get(key);
+    byName.set(key, { ...bare(name, true), ...(entry ? { registry: entry } : {}) });
   }
 
   const scored: Array<{ hit: CVarHit; score: number }> = [];
@@ -67,8 +80,34 @@ function inferredType(hit: CVarHit): string | undefined {
   return undefined;
 }
 
+/** Where the value is stored, which decides whether a change follows the player. */
+function scope(entry: ApiCVar): string {
+  if (entry.account && entry.character) return "account and character";
+  if (entry.account) return "per WoW account";
+  if (entry.character) return "per character";
+  return "global to the install";
+}
+
 export function renderCVar(hit: CVarHit): string {
   const lines = [hit.name];
+  const entry = hit.registry;
+
+  // Blizzard's own description first — it is the thing that answers "what is
+  // this?", which everything below only circumstantially hints at.
+  if (entry?.help) lines.push(`  ${entry.help}`);
+
+  if (entry) {
+    lines.push(`  default:   ${entry.default === "" ? '""  (empty)' : entry.default}`);
+    if (entry.category) lines.push(`  category:  ${entry.category}`);
+    lines.push(`  stored:    ${scope(entry)}`);
+    if (entry.secure) {
+      // The one field that changes what an addon may legally do.
+      lines.push(
+        "  PROTECTED: an addon cannot set this — SetCVar will fail or taint. " +
+          "Offer it as a /console instruction instead.",
+      );
+    }
+  }
 
   const type = inferredType(hit);
   if (type) {

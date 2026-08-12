@@ -134,7 +134,13 @@ export const uiSourceTools: ToolDef[] = [
           "how the game itself uses these.";
       }
 
-      let hits = searchCVars(query as string, api.cvarSet, used, (limit as number) ?? 20);
+      let hits = searchCVars(
+        query as string,
+        api.cvarSet,
+        api.cvarByName,
+        used,
+        (limit as number) ?? 20,
+      );
       if (usedOnly) hits = hits.filter((h) => h.refs > 0);
 
       if (hits.length === 0) {

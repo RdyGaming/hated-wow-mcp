@@ -55,5 +55,25 @@ export interface ApiIndex {
   globals: string[];
   /** Every event name valid in this flavor, documented or not. */
   eventNames: string[];
-  cvars: string[];
+  /**
+   * Objects since 0.4.0; a bare `string[]` in indexes built before that. The
+   * loader normalises both, so an old bundled index still works.
+   */
+  cvars: ApiCVar[] | string[];
+}
+
+export interface ApiCVar {
+  name: string;
+  /** The client's default, as a string — CVar values are always strings. */
+  default: string;
+  /** Debug, Graphics, Console, Combat, Game, Net, Sound, Gm, Reveal, None. */
+  category: string;
+  /** Stored per WoW account rather than per character. */
+  account: boolean;
+  /** Stored per character. */
+  character: boolean;
+  /** Protected: an addon cannot set it, and trying taints. */
+  secure: boolean;
+  /** Blizzard's own one-line description, where there is one. */
+  help?: string;
 }

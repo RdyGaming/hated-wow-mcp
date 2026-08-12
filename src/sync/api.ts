@@ -19,8 +19,10 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { BUNDLED_DIR, isCheckout } from "../paths.js";
+import type { ApiCVar } from "../wowapi/types.js";
 
 // Unlike the other two syncs, this one rebuilds data that ships inside the
 // package, so it writes to the package directory rather than the cache root.
@@ -192,6 +194,64 @@ function parseLuaTable(source: string): Record<string, LuaValue> {
     throw new Error("top-level value is not a keyed table");
   }
   return result as Record<string, LuaValue>;
+}
+
+// ---------------------------------------------------------------------------
+// Console variables
+// ---------------------------------------------------------------------------
+
+/** Category ordinals used by Resources/CVars.lua. 5 is the unnamed default. */
+const CVAR_CATEGORIES: Record<number, string> = {
+  0: "Debug",
+  1: "Graphics",
+  2: "Console",
+  3: "Combat",
+  4: "Game",
+  5: "",
+  6: "Net",
+  7: "Sound",
+  8: "Gm",
+  9: "Reveal",
+  10: "None",
+};
+
+/**
+ * Parses `Resources/CVars.lua`, whose rows are documented upstream as:
+ *
+ *   var = default, category, account, character, secure, help
+ *
+ * Only the `var` sub-table is read. The same file carries a `command` table of
+ * console commands, which are a different thing and would pollute the CVar
+ * registry if hoovered up by a looser pattern — which is what the previous
+ * key-only regex did, on top of discarding every field but the name.
+ */
+export function parseCVars(source: string): ApiCVar[] {
+  const varStart = source.indexOf("var = {");
+  if (varStart === -1) return [];
+  const commandStart = source.indexOf("command = {", varStart);
+  const body = source.slice(varStart, commandStart === -1 ? undefined : commandStart);
+
+  const out: ApiCVar[] = [];
+  // Values may contain commas and escaped quotes (URLs, sentences), so split on
+  // structure rather than on `,`: leading quoted default, three flags, then the
+  // trailing quoted help.
+  const ROW =
+    /\["([^"]+)"\]\s*=\s*\{\s*"((?:[^"\\]|\\.)*)"\s*,\s*(\d+)\s*,\s*(true|false|nil)\s*,\s*(true|false|nil)\s*,\s*(true|false|nil)\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}/g;
+
+  for (const m of body.matchAll(ROW)) {
+    const help = m[7]!.replace(/\\"/g, '"').trim();
+    out.push({
+      name: m[1]!,
+      default: m[2]!.replace(/\\"/g, '"'),
+      category: CVAR_CATEGORIES[Number(m[3])] ?? "",
+      account: m[4] === "true",
+      character: m[5] === "true",
+      secure: m[6] === "true",
+      ...(help ? { help } : {}),
+    });
+  }
+
+  return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // ---------------------------------------------------------------------------
@@ -447,12 +507,12 @@ async function buildFlavor(flavor: string): Promise<Record<string, unknown>> {
     failures.push(`Events.lua: ${(err as Error).message}`);
   }
 
-  let cvars: string[] = [];
+  let cvars: ApiCVar[] = [];
   try {
     const src = await fetchText(
       `${RESOURCES}/${branches.resources}/Resources/CVars.lua`,
     );
-    cvars = [...src.matchAll(/^\s*\[?"([a-zA-Z][\w]*)"\]?\s*=/gm)].map((m) => m[1]!);
+    cvars = parseCVars(src);
   } catch {
     /* CVars are a nice-to-have; a missing file is not fatal. */
   }
@@ -541,7 +601,11 @@ async function main(): Promise<void> {
   process.stderr.write("\nDone.\n");
 }
 
-main().catch((err) => {
-  process.stderr.write(`sync failed: ${(err as Error).stack}\n`);
-  process.exit(1);
-});
+// Only sync when run as a program. Importing this module — to test the parsers
+// against a fixture, say — must not start fetching seventeen hundred files.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    process.stderr.write(`sync failed: ${(err as Error).stack}\n`);
+    process.exit(1);
+  });
+}

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { DATA_DIR, bundledDataMessage, type Flavor } from "../config.js";
-import type { ApiEvent, ApiFunction, ApiIndex, ApiTable } from "./types.js";
+import type { ApiCVar, ApiEvent, ApiFunction, ApiIndex, ApiTable } from "./types.js";
 
 /**
  * The three bundled indexes total ~8 MB of JSON. Loading one costs ~150 ms, so
@@ -22,6 +22,12 @@ export interface LoadedIndex {
   globalSet: Set<string>;
   eventSet: Set<string>;
   cvarSet: Set<string>;
+  /**
+   * Lowercased CVar name -> its registry entry. Empty when the bundled index
+   * predates 0.4.0 and carries only names; `cvarSet` still works in that case,
+   * so a stale index degrades to "does this exist" rather than failing.
+   */
+  cvarByName: Map<string, ApiCVar>;
   /**
    * Every name that resolves to something callable in this flavor: documented
    * functions, their bare names, legacy globals and namespace roots. This is
@@ -78,6 +84,18 @@ export function loadIndex(flavor: Flavor): LoadedIndex {
   const byTable = new Map<string, ApiTable>();
   for (const t of raw.tables) byTable.set(t.name.toLowerCase(), t);
 
+  // Indexes built before 0.4.0 hold bare names; newer ones hold full entries.
+  const cvarNames: string[] = [];
+  const cvarByName = new Map<string, ApiCVar>();
+  for (const entry of raw.cvars ?? []) {
+    if (typeof entry === "string") {
+      cvarNames.push(entry);
+    } else {
+      cvarNames.push(entry.name);
+      cvarByName.set(entry.name.toLowerCase(), entry);
+    }
+  }
+
   const loaded: LoadedIndex = {
     raw,
     bySignature,
@@ -86,7 +104,8 @@ export function loadIndex(flavor: Flavor): LoadedIndex {
     byTable,
     globalSet: new Set(raw.globals),
     eventSet: new Set(raw.eventNames),
-    cvarSet: new Set(raw.cvars),
+    cvarSet: new Set(cvarNames),
+    cvarByName,
     callableSet,
     namespaces,
   };
