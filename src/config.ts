@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-import { BUNDLED_DIR, cacheRoot, cacheRootReason } from "./paths.js";
+import { BUNDLED_DIR, cacheRoot, isCheckout } from "./paths.js";
 
 /** Where the bundled API index, XSD and manifest live. */
 export const DATA_DIR = BUNDLED_DIR;
@@ -261,12 +261,16 @@ export const DATA_PATHS = {
  * `sync` is the sync's name — `ui-source`, `game-data`, `api`. The command we
  * suggest depends on how the server was installed: a clone has package scripts
  * to run, an installed copy does not and has to go through the bin.
+ *
+ * This keys off whether there is a checkout, not off where the cache landed.
+ * Those usually agree, but an installed copy that sets WOW_MCP_DATA_DIR — which
+ * the README recommends for putting the data on another drive — would otherwise
+ * be told to run a package script it does not have.
  */
 export function dataMissingMessage(what: string, sync: string): string {
-  const command =
-    cacheRootReason() === "cache"
-      ? `npx -y hated-wow-mcp sync ${sync}`
-      : `npm run sync-${sync}`;
+  const command = isCheckout()
+    ? `npm run sync-${sync}`
+    : `npx -y hated-wow-mcp sync ${sync}`;
 
   return [
     `The ${what} data set has not been built yet.`,
