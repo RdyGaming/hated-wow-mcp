@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Builds the game-data bridge: the FileDataID <-> file path mapping every
  * addon needs in order to reference art, plus the texture atlas tables.
@@ -18,17 +18,20 @@
  *   npm run sync-game-data
  *   npm run sync-game-data -- --full
  *   npm run sync-game-data -- --build 12.0.7.60000
+ *   npm run sync-game-data -- --force   # ignore the cache and rebuild
  */
 
-import { createWriteStream } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createWriteStream, existsSync } from "node:fs";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = resolve(HERE, "..", "data");
+import { cacheRoot } from "../paths.js";
+
+// Both indexes are heavy and rebuilt from upstream, so they belong in the
+// writable cache root rather than inside the package. See src/paths.ts.
+const DATA_DIR = cacheRoot();
 const CACHE_DIR = resolve(DATA_DIR, ".cache");
 
 const LISTFILE_URL =
@@ -37,16 +40,73 @@ const WAGO_BASE = "https://wago.tools";
 
 // ---------------------------------------------------------------------------
 
-async function download(url: string, dest: string): Promise<void> {
+/** Validators from the last successful download, stored beside the file. */
+interface CacheMeta {
+  url: string;
+  etag?: string;
+  lastModified?: string;
+}
+
+export interface DownloadResult {
+  /** Upstream answered 304 — `dest` is the previous copy, still current. */
+  notModified: boolean;
+  etag?: string;
+}
+
+async function readMeta(metaPath: string): Promise<CacheMeta | null> {
+  try {
+    return JSON.parse(await readFile(metaPath, "utf8")) as CacheMeta;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Downloads `url` to `dest`, but only when upstream says it changed.
+ *
+ * The listfile is ~149MB and is republished far less often than people re-sync,
+ * so every sync used to spend minutes re-fetching bytes it already had. We keep
+ * the ETag / Last-Modified from the previous fetch in a sidecar and revalidate
+ * with it; an unchanged listfile costs one round trip instead of 149MB.
+ *
+ * The body streams to a temp file and is renamed into place only once complete,
+ * so an interrupted download cannot leave a truncated file behind that a later
+ * run would then trust.
+ */
+async function download(url: string, dest: string, force = false): Promise<DownloadResult> {
+  const metaPath = `${dest}.meta.json`;
+  const headers: Record<string, string> = { "user-agent": "wow-mcp-server/sync" };
+
+  const prior = force ? null : await readMeta(metaPath);
+  if (prior?.url === url && existsSync(dest)) {
+    if (prior.etag) headers["if-none-match"] = prior.etag;
+    if (prior.lastModified) headers["if-modified-since"] = prior.lastModified;
+  }
+
   process.stderr.write(`fetching ${url}\n`);
-  const res = await fetch(url, {
-    headers: { "user-agent": "wow-mcp-server/sync" },
-    redirect: "follow",
-  });
+  const res = await fetch(url, { headers, redirect: "follow" });
+
+  if (res.status === 304) {
+    process.stderr.write("  unchanged upstream — reusing the cached copy\n");
+    return { notModified: true, ...(prior?.etag ? { etag: prior.etag } : {}) };
+  }
   if (!res.ok || !res.body) {
     throw new Error(`HTTP ${res.status} fetching ${url}`);
   }
-  await pipeline(Readable.fromWeb(res.body as never), createWriteStream(dest));
+
+  const tmp = `${dest}.partial`;
+  await pipeline(Readable.fromWeb(res.body as never), createWriteStream(tmp));
+  await rename(tmp, dest);
+
+  const etag = res.headers.get("etag") ?? undefined;
+  const lastModified = res.headers.get("last-modified") ?? undefined;
+  await writeFile(
+    metaPath,
+    JSON.stringify({ url, etag, lastModified } satisfies CacheMeta),
+    "utf8",
+  );
+
+  return { notModified: false, ...(etag ? { etag } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +127,8 @@ export interface FileEntry {
 interface FilesIndex {
   generatedAt: string;
   source: string;
+  /** ETag of the listfile this index was built from, for revalidation. */
+  sourceEtag?: string;
   counts: Record<string, number>;
   /** Every `interface/**` entry, sorted by path. */
   interface: FileEntry[];
@@ -76,11 +138,46 @@ interface FilesIndex {
   full?: FileEntry[];
 }
 
-async function buildFilesIndex(full: boolean): Promise<FilesIndex> {
+/**
+ * The index on disk, but only if it is still current: built from the listfile
+ * we just revalidated, and in the mode being asked for. A --full run must
+ * rebuild an interface-only index even when the listfile itself is unchanged.
+ */
+async function readIndexIfCurrent(
+  etag: string | undefined,
+  full: boolean,
+): Promise<FilesIndex | null> {
+  if (!etag) return null;
+  try {
+    const existing = JSON.parse(
+      await readFile(resolve(DATA_DIR, "files-index.json"), "utf8"),
+    ) as FilesIndex;
+    if (existing.sourceEtag !== etag) return null;
+    if (full && !existing.full) return null;
+    return existing;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns null when the existing index is already current — the listfile did
+ * not change and the index on disk was built from that same listfile in the
+ * same mode. Re-parsing 149MB to produce identical output helps no one.
+ */
+async function buildFilesIndex(
+  full: boolean,
+  force: boolean,
+): Promise<FilesIndex | null> {
   await mkdir(CACHE_DIR, { recursive: true });
   const csvPath = resolve(CACHE_DIR, "community-listfile.csv");
 
-  await download(LISTFILE_URL, csvPath);
+  const fetched = await download(LISTFILE_URL, csvPath, force);
+
+  if (fetched.notModified && !force) {
+    const existing = await readIndexIfCurrent(fetched.etag, full);
+    if (existing) return null;
+  }
 
   process.stderr.write("parsing listfile…\n");
   const text = await readFile(csvPath, "utf8");
@@ -111,6 +208,7 @@ async function buildFilesIndex(full: boolean): Promise<FilesIndex> {
   const index: FilesIndex = {
     generatedAt: new Date().toISOString(),
     source: LISTFILE_URL,
+    ...(fetched.etag ? { sourceEtag: fetched.etag } : {}),
     counts: {
       total: Object.values(roots).reduce((a, b) => a + b, 0),
       interface: ifaceEntries.length,
@@ -286,16 +384,20 @@ async function main(): Promise<void> {
   const buildIdx = args.indexOf("--build");
   const build = buildIdx !== -1 ? args[buildIdx + 1] : undefined;
   const skipAtlas = args.includes("--no-atlas");
+  const force = args.includes("--force");
 
   await mkdir(DATA_DIR, { recursive: true });
 
   // Files first: it is the part that always works, and the atlas fetch depends
   // on a third-party host that may be unreachable from some networks.
-  const files = await buildFilesIndex(full);
-  await writeFile(resolve(DATA_DIR, "files-index.json"), JSON.stringify(files), "utf8");
-  process.stderr.write(
-    `wrote data/files-index.json (${JSON.stringify(files.counts)})\n`,
-  );
+  const files = await buildFilesIndex(full, force);
+  if (files === null) {
+    process.stderr.write("file index already current — skipped (--force to rebuild)\n");
+  } else {
+    const filesPath = resolve(DATA_DIR, "files-index.json");
+    await writeFile(filesPath, JSON.stringify(files), "utf8");
+    process.stderr.write(`wrote ${filesPath} (${JSON.stringify(files.counts)})\n`);
+  }
 
   if (skipAtlas) {
     process.stderr.write("skipping atlas sync (--no-atlas)\n");
@@ -304,10 +406,9 @@ async function main(): Promise<void> {
 
   try {
     const atlas = await buildAtlasIndex(build);
-    await writeFile(resolve(DATA_DIR, "atlas-index.json"), JSON.stringify(atlas), "utf8");
-    process.stderr.write(
-      `wrote data/atlas-index.json (${JSON.stringify(atlas.counts)})\n`,
-    );
+    const atlasPath = resolve(DATA_DIR, "atlas-index.json");
+    await writeFile(atlasPath, JSON.stringify(atlas), "utf8");
+    process.stderr.write(`wrote ${atlasPath} (${JSON.stringify(atlas.counts)})\n`);
   } catch (err) {
     process.stderr.write(
       `\nAtlas sync failed: ${(err as Error).message}\n` +
