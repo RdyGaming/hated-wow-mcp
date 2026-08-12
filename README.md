@@ -1,5 +1,8 @@
 # Hated WoW MCP
 
+[![npm](https://img.shields.io/npm/v/hated-wow-mcp)](https://www.npmjs.com/package/hated-wow-mcp)
+[![license](https://img.shields.io/npm/l/hated-wow-mcp)](LICENSE)
+
 **An MCP server for writing World of Warcraft addons.** Free and open source.
 
 It gives your AI assistant three things it otherwise guesses at: the **in-game
@@ -25,66 +28,12 @@ Battle.net web API in this server — no armory lookups, no auction house.
 
 ## Quick start
 
-Requires **Node 20+** and **git** on your PATH.
-
-```bash
-git clone https://github.com/RdyGaming/hated-wow-mcp.git
-cd hated-wow-mcp
-npm install
-npm run build
-npm run sync-all
-npm test
-```
-
-> **Before you run `sync-all`:** open **<https://wago.tools/>** once in your
-> browser and let the page fully load. wago.tools sits behind bot protection,
-> and visiting it first from the same connection lets the atlas download through.
-> Skip this and the atlas step may fail with HTTP 403.
-
-`npm run sync-all` downloads the game data (a ~44 MB shallow clone of Blizzard's
-UI source and a ~149 MB listfile). Give it a few minutes on first run. `npm test`
-should report **46 passed, 0 failed**.
-
-On Windows you can run `setup.cmd` instead, which does all five steps and prints
-the exact path you need for the next section.
-
-### Where the data lives
-
-The Lua API indexes ship with the server, so **API search, type and event
-lookup, linting, TOC/XML validation and scaffolding work the moment it starts** —
-no sync required. The syncs add the UI source corpus and the art/FileDataID
-lookups.
-
-Synced data goes next to the source in `data/` when you are working from a
-clone. An installed copy has no writable package directory, so it goes to the
-OS cache instead:
-
-| Platform | Location |
-| --- | --- |
-| Windows | `%LOCALAPPDATA%\hated-wow-mcp\Cache` |
-| macOS | `~/Library/Caches/hated-wow-mcp` |
-| Linux | `$XDG_CACHE_HOME/hated-wow-mcp`, else `~/.cache/hated-wow-mcp` |
-
-Set `WOW_MCP_DATA_DIR` to override — useful for putting ~70 MB on another
-drive, or sharing one sync between several checkouts. `wow_data_status` always
-reports the resolved location.
-
----
-
-## Add it to your client
-
-Every client needs the **absolute path** to `dist/index.js`. Print it:
-
-```bash
-node -e "console.log(require('path').resolve('dist/index.js'))"
-```
+Requires **Node 20+**. Nothing to clone, nothing to build.
 
 ### Claude Code
 
-One command — no file editing:
-
 ```bash
-claude mcp add wow -- node /absolute/path/to/hated-wow-mcp/dist/index.js
+claude mcp add wow -- npx -y hated-wow-mcp
 ```
 
 Add `-s user` to make it available in every project instead of just the current
@@ -109,8 +58,8 @@ merge this in rather than replacing the file:
 {
   "mcpServers": {
     "wow": {
-      "command": "node",
-      "args": ["C:\\absolute\\path\\to\\hated-wow-mcp\\dist\\index.js"],
+      "command": "npx",
+      "args": ["-y", "hated-wow-mcp"],
       "env": {
         "WOW_DEFAULT_FLAVOR": "mainline"
       }
@@ -118,9 +67,6 @@ merge this in rather than replacing the file:
   }
 }
 ```
-
-On Windows, backslashes must be doubled in JSON. On macOS/Linux use a normal
-path like `/Users/you/hated-wow-mcp/dist/index.js`.
 
 Then **fully quit Claude Desktop from the system tray** and reopen it — closing
 the window is not enough, and the config is only read at startup.
@@ -130,14 +76,95 @@ the window is not enough, and the config is only read at startup.
 Same JSON block as above. Cursor reads `.cursor/mcp.json` in your project, or
 `~/.cursor/mcp.json` globally. See `mcp-config.example.json` in this repo.
 
+### Then sync the game data
+
+The Lua API indexes ship inside the package, so **API search, type and event
+lookup, linting, TOC/XML validation and scaffolding work the moment you add it**
+— no sync, no waiting.
+
+The UI source corpus and the art/FileDataID lookups are too large to ship, so
+those eight tools need a one-time sync. It needs **git** on your PATH:
+
+```bash
+npx -y hated-wow-mcp sync all
+```
+
+> **Before you sync:** open **<https://wago.tools/>** once in your browser and
+> let the page fully load. wago.tools sits behind bot protection, and visiting
+> it first from the same connection lets the atlas download through. Skip this
+> and the atlas step may fail with HTTP 403.
+
+That fetches a ~44 MB shallow clone of Blizzard's UI source and a ~149 MB
+listfile — a few minutes on first run. Re-running later is cheap: an unchanged
+listfile is revalidated rather than re-downloaded, so a no-op sync takes about
+two seconds.
+
 ### Verify it worked
 
 Ask your assistant: *"Using the WoW MCP, what does C_Item.GetItemInfo return?"*
 You should get a full 18-value signature. Or run the server directly:
 
 ```bash
-npm run list-tools
+npx hated-wow-mcp --list
 ```
+
+That should print all 19 tools.
+
+### Where the data lives
+
+Synced data never goes inside the package — that is what makes `npx` work. It
+lands in your OS cache directory:
+
+| Platform | Location |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\hated-wow-mcp\Cache` |
+| macOS | `~/Library/Caches/hated-wow-mcp` |
+| Linux | `$XDG_CACHE_HOME/hated-wow-mcp`, else `~/.cache/hated-wow-mcp` |
+
+Set `WOW_MCP_DATA_DIR` to override — useful for putting ~70 MB on another
+drive, or sharing one sync between several installs. `wow_data_status` always
+reports where it resolved to and why.
+
+---
+
+## Running from a clone
+
+You only need this to modify the server, or to use the
+[local web UI](#browse-it-without-an-ai-client), which is not part of the
+published package. Requires **Node 20+** and **git**.
+
+```bash
+git clone https://github.com/RdyGaming/hated-wow-mcp.git
+cd hated-wow-mcp
+npm install
+npm run build
+npm run sync-all
+npm test
+```
+
+`npm test` should report **46 passed, 0 failed**. On Windows, `setup.cmd` does
+all five steps and prints the absolute path you need below.
+
+A clone keeps its synced data in `data/` beside the source rather than in the OS
+cache, so working on the server never disturbs an npx install you already have.
+
+Point your client at the built entry point instead of npx:
+
+```json
+{
+  "mcpServers": {
+    "wow": {
+      "command": "node",
+      "args": ["C:\\absolute\\path\\to\\hated-wow-mcp\\dist\\index.js"]
+    }
+  }
+}
+```
+
+On Windows, backslashes must be doubled in JSON. On macOS/Linux use a normal
+path like `/Users/you/hated-wow-mcp/dist/index.js`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 
 ---
 
@@ -146,6 +173,9 @@ npm run list-tools
 Every tool also runs in a local web UI — no assistant, no API key, no tokens.
 Useful for looking something up quickly, or for checking what a tool returns
 before you wire it into a prompt.
+
+This one needs [a clone](#running-from-a-clone); it is not part of the npm
+package.
 
 ```bash
 npm run web
@@ -296,11 +326,11 @@ and when it was synced.
 | `npm run sync-all` | All three | |
 
 Those are the commands for a clone. An installed copy has no package scripts, so
-it uses the bundled `hated-wow-mcp-sync` command instead:
+it uses the `sync` subcommand instead:
 
 ```bash
-npx hated-wow-mcp-sync all
-npx hated-wow-mcp-sync game-data -- --full
+npx -y hated-wow-mcp sync all
+npx -y hated-wow-mcp sync game-data -- --full
 ```
 
 `sync-api` is checkout-only — it regenerates data that ships inside the package,
@@ -377,13 +407,22 @@ data/                  bundled API indexes, plus synced ones in a clone
 **Server doesn't appear in Claude Desktop.** Fully quit from the system tray, not
 just the window. Check the JSON is valid and backslashes are doubled.
 
-**"Cannot find module ... dist/index.js".** You skipped `npm run build`, or the
-path in your config is wrong. It must be absolute.
+**"Cannot find module ... dist/index.js".** Only applies when running from a
+clone: you skipped `npm run build`, or the path in your config is wrong. It must
+be absolute. On npx, use `"command": "npx", "args": ["-y", "hated-wow-mcp"]` and
+there is no path to get wrong.
 
-**Art or icon lookups return nothing.** Run `npm run sync-game-data`, then check
-`wow_data_status`.
+**UI source, art or icon lookups return nothing.** Those need the one-time sync.
+Run `npx -y hated-wow-mcp sync all` (or `npm run sync-all` from a clone), then check
+`wow_data_status` — it reports where it looked and when that data was built.
 
-**`sync-ui-source` fails.** You need `git` on your PATH.
+**The sync fails.** You need `git` on your PATH for the UI source step. For an
+HTTP 403 on the atlas step, see the wago.tools note in
+[Quick start](#then-sync-the-game-data).
+
+**Data seems stale after an update.** `npx` caches the package. Force the newest
+release with `npx -y hated-wow-mcp@latest`, or clear it with `npm cache clean
+--force`. `wow_api_stats` shows which index is actually loaded.
 
 **"Filename too long" / "Clone succeeded, but checkout failed" (Windows).** Some
 Blizzard filenames are 108 characters on their own, so a deep clone path can

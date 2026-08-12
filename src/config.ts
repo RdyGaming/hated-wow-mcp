@@ -265,7 +265,7 @@ export const DATA_PATHS = {
 export function dataMissingMessage(what: string, sync: string): string {
   const command =
     cacheRootReason() === "cache"
-      ? `npx hated-wow-mcp-sync ${sync}`
+      ? `npx -y hated-wow-mcp sync ${sync}`
       : `npm run sync-${sync}`;
 
   return [

@@ -1,6 +1,6 @@
 {
   "name": "hated-wow-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Hated WoW MCP — an MCP server for World of Warcraft addon development: the in-game Lua API, Blizzard's shipped UI source, and game art/file data.",
   "author": "Hated Gaming",
   "type": "module",

@@ -30,7 +30,7 @@ const SYNCS = {
 type SyncName = keyof typeof SYNCS;
 
 const USAGE = [
-  "Usage: hated-wow-mcp-sync <api|ui-source|game-data|all> [-- <args>]",
+  "Usage: npx -y hated-wow-mcp sync <api|ui-source|game-data|all> [-- <args>]",
   "",
   "  api         Blizzard's generated API docs (ships bundled; git checkout only)",
   "  ui-source   Blizzard's shipped UI source and its symbol index (~50MB)",
@@ -38,7 +38,9 @@ const USAGE = [
   "  all         every sync that applies to this install, in order",
   "",
   "Extra arguments after -- go to the sync, e.g.:",
-  "  hated-wow-mcp-sync game-data -- --full",
+  "  npx -y hated-wow-mcp sync game-data -- --full",
+  "",
+  "From a clone, the package scripts do the same thing: npm run sync-all",
 ].join("\n");
 
 function run(name: SyncName, args: string[]): number {
