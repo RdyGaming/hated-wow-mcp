@@ -1,0 +1,94 @@
+name: Incorrect or missing game data
+description: A lookup returns the wrong answer, or misses something the client has
+labels: ["data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most useful kind of report here. The whole point of this
+        server is that an AI can trust what it returns, so an answer that is
+        confidently wrong is worse than one that is missing.
+
+        Before filing: run `wow_data_status` and `wow_api_stats`. If your
+        indexes are months old, re-sync first — a no-op sync takes seconds.
+
+  - type: dropdown
+    id: dataset
+    attributes:
+      label: Which data set
+      options:
+        - Lua API (functions, events, enums, structures)
+        - Blizzard UI source (grep, templates, mixins, file reads)
+        - Game files / FileDataIDs
+        - Texture atlases
+        - Interface versions or .toc validation
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: flavor
+    attributes:
+      label: Game flavor
+      options:
+        - mainline (retail)
+        - mists
+        - cata
+        - wrath
+        - tbc
+        - vanilla (Classic Era)
+    validations:
+      required: true
+
+  - type: textarea
+    id: query
+    attributes:
+      label: What you asked for
+      description: The tool and arguments.
+      render: text
+      placeholder: 'wow_api_search with query "C_TooltipInfo.GetUnit"'
+    validations:
+      required: true
+
+  - type: textarea
+    id: got
+    attributes:
+      label: What it returned
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What the client actually does
+      description: >
+        The important part. How do you know? Ideally the real signature or
+        behaviour, plus where it came from — a `/dump` or `/run` in game, the
+        line in Blizzard's source, or a warcraft.wiki.gg page. Reports that can
+        be checked against the game get fixed; reports that can only be checked
+        against someone's memory usually cannot.
+      placeholder: |
+        In game on 12.0.7:
+          /dump C_TooltipInfo.GetUnit("player")
+        returns a TooltipData table, but the search says the function does not
+        exist.
+    validations:
+      required: true
+
+  - type: input
+    id: build
+    attributes:
+      label: Game build
+      description: The build you tested against, from the login screen or `/run print(GetBuildInfo())`.
+      placeholder: "12.0.7.60000"
+    validations:
+      required: false
+
+  - type: textarea
+    id: data-status
+    attributes:
+      label: Output of wow_data_status
+      render: text
+    validations:
+      required: false

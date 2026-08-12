@@ -48,6 +48,27 @@ should report **46 passed, 0 failed**.
 On Windows you can run `setup.cmd` instead, which does all five steps and prints
 the exact path you need for the next section.
 
+### Where the data lives
+
+The Lua API indexes ship with the server, so **API search, type and event
+lookup, linting, TOC/XML validation and scaffolding work the moment it starts** —
+no sync required. The syncs add the UI source corpus and the art/FileDataID
+lookups.
+
+Synced data goes next to the source in `data/` when you are working from a
+clone. An installed copy has no writable package directory, so it goes to the
+OS cache instead:
+
+| Platform | Location |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\hated-wow-mcp\Cache` |
+| macOS | `~/Library/Caches/hated-wow-mcp` |
+| Linux | `$XDG_CACHE_HOME/hated-wow-mcp`, else `~/.cache/hated-wow-mcp` |
+
+Set `WOW_MCP_DATA_DIR` to override — useful for putting ~70 MB on another
+drive, or sharing one sync between several checkouts. `wow_data_status` always
+reports the resolved location.
+
 ---
 
 ## Add it to your client
@@ -183,8 +204,8 @@ All settings are optional — see `.env.example`.
 | File index | 172,175 interface files including 36,624 icons, mapped to FileDataIDs | [wowdev/wow-listfile](https://github.com/wowdev/wow-listfile) |
 | Atlas index | 17,465 named `SetAtlas` elements with sizes and coordinates | [wago.tools](https://wago.tools) DB2 exports |
 
-All of it is synced from public mirrors by scripts in `scripts/`, so it tracks
-patches without anyone hand-maintaining a list.
+All of it is synced from public mirrors by the scripts in `src/sync/`, so it
+tracks patches without anyone hand-maintaining a list.
 
 ---
 
@@ -274,9 +295,26 @@ and when it was synced.
 | `npm run sync-game-data` | Listfile + atlas tables | Add `--full` for models/maps/sounds |
 | `npm run sync-all` | All three | |
 
+Those are the commands for a clone. An installed copy has no package scripts, so
+it uses the bundled `hated-wow-mcp-sync` command instead:
+
+```bash
+npx hated-wow-mcp-sync all
+npx hated-wow-mcp-sync game-data -- --full
+```
+
+`sync-api` is checkout-only — it regenerates data that ships inside the package,
+so an installed copy gets a newer API index by upgrading rather than syncing.
+
 The data comes from public upstream mirrors, so re-syncing picks up patch changes
 without waiting on a release here. Note that those mirrors typically lag a live
 patch by hours to days.
+
+**Re-syncing is cheap when nothing changed.** The 149 MB listfile is revalidated
+with its `ETag`, so an unchanged one costs a single round trip rather than a
+fresh download, and the index is left alone rather than rebuilt — a no-op
+`sync-game-data` finishes in about two seconds. Pass `--force` to ignore the
+cache and rebuild regardless.
 
 ### wago.tools access
 
@@ -308,11 +346,12 @@ src/
   toc/                 .toc parser and validator
   scaffold/            addon generator
   tools/               MCP tool definitions
-scripts/               the three sync scripts
+  sync/                the three sync scripts, plus their shared entry point
+  paths.ts             bundled vs. synced data locations
 server.js              local web UI backend (npm run web)
 index.html             local web UI frontend
 test/smoke.mjs         46 end-to-end checks against real data
-data/                  generated indexes (see .gitignore)
+data/                  bundled API indexes, plus synced ones in a clone
 ```
 
 ---
@@ -359,6 +398,17 @@ enable long paths system-wide in Windows.
 
 Issues and pull requests welcome at
 [github.com/RdyGaming/hated-wow-mcp](https://github.com/RdyGaming/hated-wow-mcp).
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the dev setup, how the two data sets
+differ, and what to know before adding a tool. Participation is governed by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+The most valuable report is a lookup that returns something **wrong** rather
+than nothing — there is an issue template for it that asks how you verified the
+real behaviour, so the fix can be checked against the game.
+
+Found a security problem? Please report it privately — see
+[SECURITY.md](SECURITY.md).
 
 ## License
 

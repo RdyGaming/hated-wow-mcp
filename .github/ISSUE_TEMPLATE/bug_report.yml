@@ -1,0 +1,85 @@
+name: Bug report
+description: The server crashes, a tool errors, or something behaves wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For **wrong or missing game data** (a function that exists in the client
+        but not in search results, a bad signature), please use the
+        *Incorrect or missing game data* template instead — it asks for the
+        details needed to verify a fix against the game.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what the server did instead of what you expected.
+      placeholder: |
+        Called wow_ui_grep with pattern "^function" and it returned an empty
+        result, but the same pattern matches when I grep the checkout directly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Tool call
+      description: >
+        The tool name and arguments, if a specific call triggered it. Paste the
+        error output too — the full text, not a screenshot.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`npm ls hated-wow-mcp`, or the commit SHA if running from a clone."
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed
+      options:
+        - git clone
+        - npm install
+        - npx
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: textarea
+    id: data-status
+    attributes:
+      label: Output of wow_data_status
+      description: >
+        Run the `wow_data_status` tool and paste the result. It reports where
+        data is resolving from and when it was synced, which rules out most of
+        the common causes immediately.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: "Claude Code, Claude Desktop, VS Code + Copilot, the local web UI…"
+    validations:
+      required: false

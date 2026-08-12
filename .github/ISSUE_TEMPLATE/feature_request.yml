@@ -1,0 +1,53 @@
+name: Feature request
+description: Suggest a new tool, or an improvement to an existing one
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: >
+        The addon-development problem, not the proposed solution. What were you
+        building when you wanted this?
+      placeholder: |
+        I keep needing to know which CVars control nameplate behaviour, and
+        there is no way to enumerate them — I end up grepping the UI source by
+        hand and guessing which hits are real CVar names.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: If you have a shape in mind — a tool name, arguments, what it returns.
+      placeholder: |
+        A wow_cvar_search tool: query by substring, return the CVar name, its
+        default where discoverable, and the files that reference it.
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How you work around it today
+      description: >
+        Useful for judging priority, and sometimes the workaround turns out to
+        be a documentation gap rather than a missing tool.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: flavors
+    attributes:
+      label: Which flavors would need it
+      multiple: true
+      options:
+        - mainline (retail)
+        - mists
+        - cata
+        - wrath
+        - tbc
+        - vanilla (Classic Era)
+    validations:
+      required: false
