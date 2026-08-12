@@ -29,10 +29,7 @@ export interface LoadedFiles {
 
 let cache: LoadedFiles | null = null;
 
-export const FILES_MISSING = dataMissingMessage(
-  "game file",
-  "npm run sync-game-data",
-);
+export const FILES_MISSING = dataMissingMessage("game file", "game-data");
 
 export function loadFiles(): LoadedFiles {
   if (cache) return cache;
@@ -159,7 +156,7 @@ export interface AtlasIndex {
 let atlasCache: { raw: AtlasIndex; byName: Map<string, AtlasEntry> } | null = null;
 
 export const ATLAS_MISSING = [
-  dataMissingMessage("texture atlas", "npm run sync-game-data"),
+  dataMissingMessage("texture atlas", "game-data"),
   "",
   "Atlas data comes from wago.tools, which blocks some cloud and datacentre",
   "networks. If the sync reports HTTP 403, run it from a normal desktop",

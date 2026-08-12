@@ -4,7 +4,8 @@
   "description": "Hated WoW MCP — an MCP server for World of Warcraft addon development: the in-game Lua API, Blizzard's shipped UI source, and game art/file data.",
   "type": "module",
   "bin": {
-    "hated-wow-mcp": "dist/index.js"
+    "hated-wow-mcp": "dist/index.js",
+    "hated-wow-mcp-sync": "dist/sync/index.js"
   },
   "repository": {
     "type": "git",
@@ -18,7 +19,9 @@
   "main": "dist/index.js",
   "files": [
     "dist",
-    "data",
+    "data/api-*.json",
+    "data/ui.xsd",
+    "data/manifest.json",
     "README.md"
   ],
   "engines": {
@@ -30,9 +33,9 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "list-tools": "node dist/index.js --list",
-    "sync-api": "tsx scripts/sync-wow-data.ts",
-    "sync-ui-source": "tsx scripts/sync-ui-source.ts",
-    "sync-game-data": "tsx scripts/sync-game-data.ts",
+    "sync-api": "tsx src/sync/api.ts",
+    "sync-ui-source": "tsx src/sync/ui-source.ts",
+    "sync-game-data": "tsx src/sync/game-data.ts",
     "sync-all": "npm run sync-api && npm run sync-ui-source && npm run sync-game-data",
     "web": "node server.js",
     "test": "node test/smoke.mjs",

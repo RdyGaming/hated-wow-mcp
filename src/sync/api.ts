@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Rebuilds data/api-index.json from Blizzard's own generated interface
  * documentation, mirrored on GitHub.
@@ -18,11 +18,13 @@
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = resolve(HERE, "..", "data");
+import { BUNDLED_DIR, isCheckout } from "../paths.js";
+
+// Unlike the other two syncs, this one rebuilds data that ships inside the
+// package, so it writes to the package directory rather than the cache root.
+const DATA_DIR = BUNDLED_DIR;
 
 const RAW = "https://raw.githubusercontent.com";
 const UI_SRC = `${RAW}/Gethe/wow-ui-source`;
@@ -489,6 +491,20 @@ async function buildFlavor(flavor: string): Promise<Record<string, unknown>> {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  if (!isCheckout()) {
+    process.stderr.write(
+      [
+        "The API index ships inside the package, so there is nothing to sync here.",
+        "",
+        "Upgrade to get a newer index:  npm install hated-wow-mcp@latest",
+        "",
+        "This sync exists to regenerate the bundled data from a git checkout.",
+        "",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
   const requested = process.argv.slice(2).filter((a) => !a.startsWith("-"));
   const flavors = requested.length > 0 ? requested : Object.keys(FLAVOR_BRANCHES);
 

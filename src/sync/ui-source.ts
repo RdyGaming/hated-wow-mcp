@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Clones Blizzard's shipped interface source and builds a symbol index of it.
  *
@@ -17,11 +17,12 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative, resolve, sep } from "node:path";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = resolve(HERE, "..", "data");
+import { cacheRoot } from "../paths.js";
+
+// A ~48MB checkout plus its index — writable cache root, not the package.
+const DATA_DIR = cacheRoot();
 const CHECKOUT_DIR = resolve(DATA_DIR, "uisource");
 
 const REPO = "https://github.com/Gethe/wow-ui-source.git";

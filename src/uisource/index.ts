@@ -55,15 +55,27 @@ let cache: Record<string, LoadedUiSource> | null = null;
 
 export const UI_SOURCE_MISSING = dataMissingMessage(
   "Blizzard UI source",
-  "npm run sync-ui-source",
+  "ui-source",
 );
 
 function loadAll(): Record<string, UiSourceIndex> {
   if (!existsSync(DATA_PATHS.uiSource)) throw new Error(UI_SOURCE_MISSING);
-  return JSON.parse(readFileSync(DATA_PATHS.uiSource, "utf8")) as Record<
+  const all = JSON.parse(readFileSync(DATA_PATHS.uiSource, "utf8")) as Record<
     string,
     UiSourceIndex
   >;
+
+  // `checkoutDir` is an absolute path baked in at sync time. It goes stale if
+  // the index outlives the machine that built it — a moved cache directory, or
+  // an index restored from elsewhere. The checkout always sits beside the index
+  // it describes, so fall back to that rather than failing every file read.
+  for (const raw of Object.values(all)) {
+    if (!raw.checkoutDir || !existsSync(raw.checkoutDir)) {
+      raw.checkoutDir = join(DATA_PATHS.uiCheckout, raw.branch);
+    }
+  }
+
+  return all;
 }
 
 export function loadUiSource(flavor: Flavor): LoadedUiSource {

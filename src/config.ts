@@ -1,10 +1,9 @@
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+import { BUNDLED_DIR, cacheRoot, cacheRootReason } from "./paths.js";
 
 /** Where the bundled API index, XSD and manifest live. */
-export const DATA_DIR = resolve(HERE, "..", "data");
+export const DATA_DIR = BUNDLED_DIR;
 
 // ---------------------------------------------------------------------------
 // Game flavors
@@ -234,20 +233,47 @@ export function listAddons(): string[] {
 // Bundled data paths
 // ---------------------------------------------------------------------------
 
+/**
+ * The first three ship inside the package and are read-only. The rest are
+ * built by the sync scripts, so they resolve through `cacheRoot()` — a getter,
+ * not a constant, because the location depends on environment that can change
+ * between import time and first use. See src/paths.ts for the layout.
+ */
 export const DATA_PATHS = {
   apiIndex: (index: string) => join(DATA_DIR, `api-${index}.json`),
   uiSchema: join(DATA_DIR, "ui.xsd"),
-  uiSource: join(DATA_DIR, "uisource-index.json"),
-  files: join(DATA_DIR, "files-index.json"),
-  atlas: join(DATA_DIR, "atlas-index.json"),
   manifest: join(DATA_DIR, "manifest.json"),
+  get uiSource() {
+    return join(cacheRoot(), "uisource-index.json");
+  },
+  get uiCheckout() {
+    return join(cacheRoot(), "uisource");
+  },
+  get files() {
+    return join(cacheRoot(), "files-index.json");
+  },
+  get atlas() {
+    return join(cacheRoot(), "atlas-index.json");
+  },
 } as const;
 
-export function dataMissingMessage(what: string, script: string): string {
+/**
+ * `sync` is the sync's name — `ui-source`, `game-data`, `api`. The command we
+ * suggest depends on how the server was installed: a clone has package scripts
+ * to run, an installed copy does not and has to go through the bin.
+ */
+export function dataMissingMessage(what: string, sync: string): string {
+  const command =
+    cacheRootReason() === "cache"
+      ? `npx hated-wow-mcp-sync ${sync}`
+      : `npm run sync-${sync}`;
+
   return [
     `The ${what} data set has not been built yet.`,
     "",
-    `Run \`${script}\` from the server's directory to fetch and index it.`,
+    `Run \`${command}\` to fetch and index it.`,
     "That sync downloads from public mirrors and needs outbound network access.",
+    "",
+    `It will be written to ${cacheRoot()}`,
   ].join("\n");
 }

@@ -8,7 +8,21 @@ import {
   searchAtlas,
   searchFiles,
 } from "../gamedata/files.js";
+import {
+  BUNDLED_DIR,
+  cacheRoot,
+  cacheRootReason,
+  type CacheRootReason,
+} from "../paths.js";
 import { cap, text, type ToolDef } from "./shared.js";
+
+/** Why the synced data landed where it did, in words a user can act on. */
+const CACHE_ROOT_REASONS: Record<CacheRootReason, string> = {
+  env: "set by WOW_MCP_DATA_DIR",
+  checkout: "git checkout — data kept beside the source",
+  legacy: "existing sync found in the package directory",
+  cache: "OS cache directory",
+};
 
 export const gameDataTools: ToolDef[] = [
   {
@@ -178,6 +192,13 @@ export const gameDataTools: ToolDef[] = [
     },
     handler: async () => {
       const lines: string[] = ["Game data sets", ""];
+
+      lines.push(
+        "  Locations",
+        `    bundled:  ${BUNDLED_DIR}`,
+        `    synced:   ${cacheRoot()}  (${CACHE_ROOT_REASONS[cacheRootReason()]})`,
+        "",
+      );
 
       try {
         const files = loadFiles();
