@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-08-12T18:29:38.692Z",
+  "generatedAt": "2026-08-17T06:52:22.720Z",
   "flavors": {
     "mainline": {
-      "functions": 6335,
+      "functions": 6336,
       "events": 1783,
       "tables": 1676,
-      "globals": 6704,
-      "cvars": 1635
+      "globals": 6830,
+      "cvars": 1652
     },
     "classic": {
       "functions": 4590,
