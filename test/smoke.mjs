@@ -479,6 +479,80 @@ await verify("the shipped registry carries the fields the tool renders", async (
   }
 });
 
+console.log("\n== Sync determinism ==");
+
+await verify("sorting functions is a total order, not just by signature", async () => {
+  const { byFunction } = await import("../dist/sync/api.js");
+
+  // Two entries that legitimately share a signature but differ in system -
+  // exactly the shape that made the old signature-only sort unstable, since
+  // Array.sort is stable and left ties in fetch-completion order.
+  const a = { signature: "AddPoint", system: "LuaCurveObjectAPI", name: "AddPoint" };
+  const b = { signature: "AddPoint", system: "LuaColorCurveObjectAPI", name: "AddPoint" };
+
+  const sortedAB = [a, b].sort(byFunction);
+  const sortedBA = [b, a].sort(byFunction);
+  assert.deepEqual(
+    sortedAB.map((x) => x.system),
+    sortedBA.map((x) => x.system),
+    "the comparator must resolve the tie itself, not depend on input order",
+  );
+});
+
+await verify("shuffled input sorts to the same order regardless of starting order", async () => {
+  const { readFile: rf } = await import("node:fs/promises");
+  const { byFunction } = await import("../dist/sync/api.js");
+
+  const index = JSON.parse(
+    await rf(new URL("../data/api-mainline.json", import.meta.url), "utf8"),
+  );
+  const fns = index.functions;
+
+  // A fixed-seed shuffle, not Math.random - a flaky failure here would be
+  // exactly the kind of intermittent, hard-to-reproduce bug this exists to
+  // rule out for good.
+  function shuffled(arr, seed) {
+    const out = [...arr];
+    let s = seed;
+    for (let i = out.length - 1; i > 0; i--) {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      const j = s % (i + 1);
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
+  const orderings = [1, 2, 3].map((seed) =>
+    JSON.stringify(shuffled(fns, seed).sort(byFunction)),
+  );
+  assert.ok(
+    orderings.every((o) => o === orderings[0]),
+    "the same 6000+ functions in three different starting orders produced " +
+      "three different sorted results - the comparator has a remaining tie",
+  );
+});
+
+await verify("writeIfChanged ignores generatedAt when deciding whether to write", async () => {
+  const { mkdtemp, readFile: rf } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { writeIfChanged } = await import("../dist/sync/api.js");
+
+  const dir = await mkdtemp(join(tmpdir(), "hated-wow-mcp-test-"));
+  const target = join(dir, "index.json");
+
+  const wroteFirst = writeIfChanged(target, { generatedAt: "2020-01-01T00:00:00Z", n: 1 });
+  assert.equal(wroteFirst, true, "a file that does not exist yet must be written");
+
+  const before = await rf(target, "utf8");
+  const wroteSecond = writeIfChanged(target, { generatedAt: "2099-12-31T00:00:00Z", n: 1 });
+  const reason = "only generatedAt differs - this is what used to defeat the weekly syncs commit-only-if-changed guard";
+  assert.equal(wroteSecond, false, reason);
+  assert.equal(await rf(target, "utf8"), before, "the file on disk must be untouched");
+
+  const wroteThird = writeIfChanged(target, { generatedAt: "2099-12-31T00:00:00Z", n: 2 });
+  assert.equal(wroteThird, true, "a real content change must still be written");
+});
 console.log("\n== Data staleness ==");
 
 await verify("fresh data carries no staleness warning", async () => {

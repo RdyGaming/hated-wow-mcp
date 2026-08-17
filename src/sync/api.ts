@@ -17,6 +17,7 @@
  *   npm run sync-api -- mainline     # one flavor
  */
 
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -194,6 +195,75 @@ function parseLuaTable(source: string): Record<string, LuaValue> {
     throw new Error("top-level value is not a keyed table");
   }
   return result as Record<string, LuaValue>;
+}
+
+// ---------------------------------------------------------------------------
+// Change-aware writes
+//
+// Every sync stamps a fresh `generatedAt`, so a byte-for-byte write comparison
+// would call every run "changed" even when Blizzard published nothing new.
+// That defeated the weekly CI job's "commit only if changed" guard: git saw a
+// modified file every single week, timestamp-only or not. Comparing with
+// generatedAt stripped out is what makes "nothing changed" actually reachable.
+// ---------------------------------------------------------------------------
+
+export function withoutTimestamp(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(withoutTimestamp);
+  const { generatedAt: _drop, ...rest } = value as Record<string, unknown>;
+  return rest;
+}
+
+/**
+ * Writes `data` as JSON, but only if it differs from what is already on disk
+ * once each side's `generatedAt` is ignored. Returns whether it wrote.
+ */
+export function writeIfChanged(path: string, data: unknown, indent?: number): boolean {
+  if (existsSync(path)) {
+    try {
+      const existing = JSON.parse(readFileSync(path, "utf8"));
+      if (JSON.stringify(withoutTimestamp(existing)) === JSON.stringify(withoutTimestamp(data))) {
+        return false;
+      }
+    } catch {
+      // Unreadable or not JSON — fall through and overwrite.
+    }
+  }
+  writeFileSync(path, JSON.stringify(data, null, indent), "utf8");
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic ordering
+//
+// Sorting on one field is not enough here: 173 signatures on retail are shared
+// by more than one system (AddPoint exists on both LuaCurveObjectAPI and
+// LuaColorCurveObjectAPI, and so on), covering 463 entries. Array.sort is
+// stable, so tied entries keep their input order — and input order is the
+// completion order of the concurrent document fetches, which varies run to run.
+//
+// The result was a sync whose output changed on every run without upstream
+// changing at all: same length, same contents, different permutation. That
+// makes every diff unreadable and defeats any "commit only if changed" guard.
+//
+// These comparators are total orders. Verified unique across all three flavors:
+// 6336/6336 retail, 4590/4590 classic, 4589/4589 classic era.
+// ---------------------------------------------------------------------------
+
+export function byFunction(a: ApiFunction, b: ApiFunction): number {
+  return (
+    a.signature.localeCompare(b.signature) ||
+    a.system.localeCompare(b.system) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+export function byEvent(a: ApiEvent, b: ApiEvent): number {
+  return a.literalName.localeCompare(b.literalName) || a.system.localeCompare(b.system);
+}
+
+export function byTable(a: ApiTable, b: ApiTable): number {
+  return a.name.localeCompare(b.name) || a.system.localeCompare(b.system);
 }
 
 // ---------------------------------------------------------------------------
@@ -538,12 +608,13 @@ async function buildFlavor(flavor: string): Promise<Record<string, unknown>> {
       globals: globals.length,
       cvars: cvars.length,
     },
-    functions: functions.sort((a, b) => a.signature.localeCompare(b.signature)),
-    events: events.sort((a, b) => a.literalName.localeCompare(b.literalName)),
-    tables: tables.sort((a, b) => a.name.localeCompare(b.name)),
+    functions: functions.sort(byFunction),
+    events: events.sort(byEvent),
+    tables: tables.sort(byTable),
     globals: globals.sort(),
     eventNames: allEvents,
-    cvars: cvars.sort(),
+    // parseCVars already returns these sorted by name.
+    cvars,
     failures,
   };
 }
@@ -571,13 +642,17 @@ async function main(): Promise<void> {
   await mkdir(DATA_DIR, { recursive: true });
 
   const summary: Record<string, unknown> = {};
+  let anyChanged = false;
   for (const flavor of flavors) {
     const built = await buildFlavor(flavor);
     const target = resolve(DATA_DIR, `api-${flavor}.json`);
-    await writeFile(target, JSON.stringify(built), "utf8");
+    const changed = writeIfChanged(target, built);
+    anyChanged ||= changed;
     summary[flavor] = built.counts;
     process.stderr.write(
-      `[${flavor}] wrote ${target} (${JSON.stringify(built.counts)})\n`,
+      changed
+        ? `[${flavor}] wrote ${target} (${JSON.stringify(built.counts)})\n`
+        : `[${flavor}] unchanged upstream — left as is\n`,
     );
   }
 
@@ -593,10 +668,10 @@ async function main(): Promise<void> {
     process.stderr.write(`[schema] WARN ${(err as Error).message}\n`);
   }
 
-  await writeFile(
+  writeIfChanged(
     resolve(DATA_DIR, "manifest.json"),
-    JSON.stringify({ generatedAt: new Date().toISOString(), flavors: summary }, null, 2),
-    "utf8",
+    { generatedAt: new Date().toISOString(), flavors: summary },
+    2,
   );
   process.stderr.write("\nDone.\n");
 }
