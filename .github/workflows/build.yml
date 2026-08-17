@@ -12,9 +12,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      # node-version is the Node the build runs on, and is deliberately pinned
+      # to the `engines` floor in package.json — it verifies the minimum we
+      # claim to support. It is unrelated to the action's own runtime, which is
+      # what the "Node.js 20 is deprecated" runner warning was about.
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
