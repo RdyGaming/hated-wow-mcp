@@ -1,6 +1,6 @@
 {
   "name": "hated-wow-mcp",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "MCP server for World of Warcraft addon development — 20 tools giving Claude, Cursor and any MCP client the in-game Lua API, Blizzard's shipped UI source, CVars, FileDataIDs and texture atlases, plus Lua linting, TOC/XML validation and addon scaffolding. Retail, Classic and Classic Era.",
   "author": "Hated Gaming",
   "type": "module",
