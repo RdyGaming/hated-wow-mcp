@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://github.com/RdyGaming/hated-wow-mcp#readme",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "hated-wow-mcp",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
