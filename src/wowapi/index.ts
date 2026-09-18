@@ -29,6 +29,15 @@ export interface LoadedIndex {
    */
   cvarByName: Map<string, ApiCVar>;
   /**
+   * False when upstream publishes no flat global-function list for this client.
+   * `callableSet` is then the generated docs alone, which is incomplete, so
+   * anything that treats "not in callableSet" as "does not exist" would report
+   * working code as broken, and has to stand down.
+   */
+  hasGlobalList: boolean;
+  /** False when upstream publishes no CVar registry (defaults, help, flags). */
+  hasCVarRegistry: boolean;
+  /**
    * Every name that resolves to something callable in this flavor: documented
    * functions, their bare names, legacy globals and namespace roots. This is
    * the allowlist the linter checks unknown calls against.
@@ -106,6 +115,8 @@ export function loadIndex(flavor: Flavor): LoadedIndex {
     eventSet: new Set(raw.eventNames),
     cvarSet: new Set(cvarNames),
     cvarByName,
+    hasGlobalList: !raw.unavailable?.includes("globals"),
+    hasCVarRegistry: !raw.unavailable?.includes("cvars"),
     callableSet,
     namespaces,
   };

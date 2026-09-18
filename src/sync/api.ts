@@ -35,13 +35,19 @@ const RESOURCES = `${RAW}/Ketho/BlizzardInterfaceResources`;
 const DOC_DIR = "Interface/AddOns/Blizzard_APIDocumentationGenerated";
 
 /** Branch layout of the two upstream mirrors, per game flavor. */
-const FLAVOR_BRANCHES: Record<string, { uiSource: string; resources: string }> = {
+const FLAVOR_BRANCHES: Record<string, { uiSource: string; resources: string | null }> = {
   // Retail. `live` tracks whatever build is on live realms.
   mainline: { uiSource: "live", resources: "master" },
   // Classic progression client (whichever expansion is current there).
   classic: { uiSource: "classic", resources: "classic" },
   // Classic Era / Anniversary realms.
   vanilla: { uiSource: "classic_era", resources: "classic_era" },
+  // WoW Forever (Camelot). Gethe mirrors it on `forever`. Ketho's resources
+  // repo has no branch for it, so the flat global, event and CVar lists do not
+  // exist yet: `null` skips those fetches and records the gap in the index,
+  // rather than silently borrowing the Classic lists, which describe a
+  // different client.
+  forever: { uiSource: "forever", resources: null },
 };
 
 const CONCURRENCY = 12;
@@ -324,6 +330,9 @@ export function parseCVars(source: string): ApiCVar[] {
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Thrown to skip a resource fetch that has no upstream. Not a failure. */
+class SkipResource extends Error {}
+
 // ---------------------------------------------------------------------------
 // Fetch helpers
 // ---------------------------------------------------------------------------
@@ -552,20 +561,30 @@ async function buildFlavor(flavor: string): Promise<Record<string, unknown>> {
   // Flat list of legacy (non-namespaced) globals — these predate the generated
   // docs and mostly have no machine-readable signature, but knowing they exist
   // and are callable in this flavor is what stops false "unknown API" lints.
+  const resources = branches.resources;
+  const unavailable: string[] = resources === null ? ["globals", "eventNames", "cvars"] : [];
+  if (resources === null) {
+    process.stderr.write(
+      `[${flavor}] no upstream resources branch, so the global, event and CVar lists are left empty\n`,
+    );
+  }
+
   let globals: string[] = [];
   try {
+    if (resources === null) throw new SkipResource();
     const src = await fetchText(
-      `${RESOURCES}/${branches.resources}/Resources/GlobalAPI.lua`,
+      `${RESOURCES}/${resources}/Resources/GlobalAPI.lua`,
     );
     globals = [...src.matchAll(/^\s*"([^"]+)",?\s*$/gm)].map((m) => m[1]!);
   } catch (err) {
-    failures.push(`GlobalAPI.lua: ${(err as Error).message}`);
+    if (!(err instanceof SkipResource)) failures.push(`GlobalAPI.lua: ${(err as Error).message}`);
   }
 
   let eventNames: string[] = [];
   try {
+    if (resources === null) throw new SkipResource();
     const src = await fetchText(
-      `${RESOURCES}/${branches.resources}/Resources/Events.lua`,
+      `${RESOURCES}/${resources}/Resources/Events.lua`,
     );
     eventNames = [...src.matchAll(/^\s*\[?"?([A-Z][A-Z0-9_]+)"?\]?\s*=/gm)].map(
       (m) => m[1]!,
@@ -574,13 +593,14 @@ async function buildFlavor(flavor: string): Promise<Record<string, unknown>> {
       eventNames = [...src.matchAll(/^\s*"([A-Z][A-Z0-9_]+)",?\s*$/gm)].map((m) => m[1]!);
     }
   } catch (err) {
-    failures.push(`Events.lua: ${(err as Error).message}`);
+    if (!(err instanceof SkipResource)) failures.push(`Events.lua: ${(err as Error).message}`);
   }
 
   let cvars: ApiCVar[] = [];
   try {
+    if (resources === null) throw new SkipResource();
     const src = await fetchText(
-      `${RESOURCES}/${branches.resources}/Resources/CVars.lua`,
+      `${RESOURCES}/${resources}/Resources/CVars.lua`,
     );
     cvars = parseCVars(src);
   } catch {
@@ -599,7 +619,7 @@ async function buildFlavor(flavor: string): Promise<Record<string, unknown>> {
     generatedAt: new Date().toISOString(),
     upstream: {
       uiSource: `Gethe/wow-ui-source@${branches.uiSource}`,
-      resources: `Ketho/BlizzardInterfaceResources@${branches.resources}`,
+      resources: resources === null ? null : `Ketho/BlizzardInterfaceResources@${resources}`,
     },
     counts: {
       functions: functions.length,
@@ -615,6 +635,7 @@ async function buildFlavor(flavor: string): Promise<Record<string, unknown>> {
     eventNames: allEvents,
     // parseCVars already returns these sorted by name.
     cvars,
+    ...(unavailable.length ? { unavailable } : {}),
     failures,
   };
 }
@@ -641,7 +662,23 @@ async function main(): Promise<void> {
 
   await mkdir(DATA_DIR, { recursive: true });
 
-  const summary: Record<string, unknown> = {};
+  // Seed from the manifest already on disk. It lists every flavor, and this
+  // used to record only the ones synced in this run, so `sync-api -- forever`
+  // dropped retail, Classic and Classic Era from it, and the weekly commit
+  // message then reported them all as new.
+  const manifestPath = resolve(DATA_DIR, "manifest.json");
+  let summary: Record<string, unknown> = {};
+  try {
+    if (existsSync(manifestPath)) {
+      const prior = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+        flavors?: Record<string, unknown>;
+      };
+      summary = { ...(prior.flavors ?? {}) };
+    }
+  } catch {
+    /* An unreadable manifest is rebuilt from what this run produces. */
+  }
+
   let anyChanged = false;
   for (const flavor of flavors) {
     const built = await buildFlavor(flavor);
@@ -669,7 +706,7 @@ async function main(): Promise<void> {
   }
 
   writeIfChanged(
-    resolve(DATA_DIR, "manifest.json"),
+    manifestPath,
     { generatedAt: new Date().toISOString(), flavors: summary },
     2,
   );

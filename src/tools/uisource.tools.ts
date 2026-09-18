@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { FLAVOR_IDS, resolveFlavor } from "../config.js";
+import { FLAVOR_IDS, resolveFlavor, syncCommand } from "../config.js";
 import { loadUiSource, readUiFile } from "../uisource/index.js";
-import { renderCVar, searchCVars } from "../uisource/cvars.js";
+import { isUsedByUi, renderCVar, searchCVars } from "../uisource/cvars.js";
 import {
   grepUiSource,
   renderMixin,
@@ -120,18 +120,36 @@ export const uiSourceTools: ToolDef[] = [
       // The UI source is optional here: the registry alone still answers "does
       // this CVar exist", which is most of the value, so a missing sync degrades
       // rather than fails.
+      const command = syncCommand("ui-source", resolved.apiIndex);
+
+      // Some clients have no upstream CVar registry, so there are no defaults,
+      // descriptions or protection flags to report. Say so rather than let a
+      // list of names read as the whole picture.
+      const registryNote = api.hasCVarRegistry
+        ? ""
+        : `\n\nNo CVar registry is published for ${resolved.label} yet, so defaults, ` +
+          "descriptions, scope and protection flags are unavailable. Only CVars " +
+          "that Blizzard's own UI touches are listed.";
+
       let used;
-      let sourceNote = "";
+      let sourceNote = registryNote;
       try {
         used = loadUiSource(resolved).raw.cvars;
         if (!used) {
-          sourceNote =
-            "\n\nUsage details need a newer UI source index — re-run the sync to add them.";
+          sourceNote += `\n\nUsage details need a newer UI source index. Re-run \`${command}\` to add them.`;
         }
       } catch {
-        sourceNote =
-          "\n\nOnly the CVar registry is loaded; sync the Blizzard UI source to see " +
-          "how the game itself uses these.";
+        if (!api.hasCVarRegistry) {
+          return text(
+            `There is no CVar data for ${resolved.label} yet. Upstream publishes no ` +
+              "registry for it, and the Blizzard UI source has not been synced, which " +
+              `is the only other source.\n\nRun \`${command}\` to index the CVars ` +
+              "Blizzard's own UI uses.",
+          );
+        }
+        sourceNote +=
+          "\n\nOnly the CVar registry is loaded; run " +
+          `\`${command}\` to see how the game itself uses these.`;
       }
 
       let hits = searchCVars(
@@ -140,8 +158,9 @@ export const uiSourceTools: ToolDef[] = [
         api.cvarByName,
         used,
         (limit as number) ?? 20,
+        api.hasCVarRegistry,
       );
-      if (usedOnly) hits = hits.filter((h) => h.refs > 0);
+      if (usedOnly) hits = hits.filter(isUsedByUi);
 
       if (hits.length === 0) {
         return text(

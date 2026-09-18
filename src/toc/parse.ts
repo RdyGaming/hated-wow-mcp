@@ -172,7 +172,7 @@ export function validateToc(
         continue;
       }
       interfaceFlavors.push(f);
-      if (num !== f.interfaceVersion) {
+      if (num < f.interfaceVersion) {
         issues.push({
           severity: "info",
           line: interfaceDirective.line,
@@ -180,6 +180,18 @@ export function validateToc(
             `Interface ${v} is behind the current ${f.label} build (${f.interfaceVersion}). ` +
             "The addon still loads, but shows as out of date in the addon list.",
           suggestion: `## Interface: ${f.interfaceVersion}`,
+        });
+      } else if (num > f.interfaceVersion) {
+        // A higher number is not "out of date". It is a PTR or beta build, or
+        // this server's number is the stale one. Either way, suggesting the
+        // lower number would tell the author to downgrade.
+        issues.push({
+          severity: "info",
+          line: interfaceDirective.line,
+          message:
+            `Interface ${v} is newer than the ${f.label} build this server knows ` +
+            `(${f.interfaceVersion}). Expected if you are targeting a PTR or beta; ` +
+            "otherwise check the number.",
         });
       }
     }

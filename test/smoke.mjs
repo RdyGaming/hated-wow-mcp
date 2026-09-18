@@ -9,7 +9,13 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 
+import { FLAVORS } from "../dist/config.js";
 import { ALL_TOOLS } from "../dist/server.js";
+
+// The Interface number for the current retail build, read from config rather
+// than written out. It changes every patch, and these tests used to hard-code
+// the previous one, so each bump failed them for a reason unrelated to the code.
+const CURRENT_RETAIL = FLAVORS.mainline.interfaceVersion;
 
 /**
  * Invokes a tool the way server.ts does — catching thrown errors and returning
@@ -236,12 +242,12 @@ console.log("\n== TOC validation ==");
 
 await check("accepts a current retail toc", "wow_toc_validate", {
   fileName: "MyAddon.toc",
-  toc: `## Interface: 120007\n## Title: MyAddon\n## SavedVariables: MyAddonDB\n\nCore.lua\n`,
+  toc: `## Interface: ${CURRENT_RETAIL}\n## Title: MyAddon\n## SavedVariables: MyAddonDB\n\nCore.lua\n`,
 }, (b) => has(b, "No issues found"));
 
 await check("catches suffix/interface mismatch", "wow_toc_validate", {
   fileName: "MyAddon_Vanilla.toc",
-  toc: `## Interface: 120007\n## Title: MyAddon\n\nCore.lua\n`,
+  toc: `## Interface: ${CURRENT_RETAIL}\n## Title: MyAddon\n\nCore.lua\n`,
 }, (b) => {
   has(b, "filename suffix targets");
   has(b, "11509");
@@ -249,7 +255,7 @@ await check("catches suffix/interface mismatch", "wow_toc_validate", {
 
 await check("catches an unknown directive", "wow_toc_validate", {
   fileName: "MyAddon.toc",
-  toc: `## Interface: 120007\n## Title: MyAddon\n## Colour: blue\n\nCore.lua\n`,
+  toc: `## Interface: ${CURRENT_RETAIL}\n## Title: MyAddon\n## Colour: blue\n\nCore.lua\n`,
 }, (b) => {
   has(b, "not a directive");
   has(b, "X-Colour");
@@ -257,7 +263,7 @@ await check("catches an unknown directive", "wow_toc_validate", {
 
 await check("catches a non-loadable file extension", "wow_toc_validate", {
   fileName: "MyAddon.toc",
-  toc: `## Interface: 120007\n## Title: MyAddon\n\nCore.txt\n`,
+  toc: `## Interface: ${CURRENT_RETAIL}\n## Title: MyAddon\n\nCore.txt\n`,
 }, (b) => has(b, "neither a .lua nor a .xml"));
 
 console.log("\n== Blizzard UI source ==");
@@ -323,7 +329,7 @@ await check("generates a complete addon skeleton", "wow_addon_scaffold", {
   withOptions: true,
 }, (b) => {
   has(b, "TestAddon/TestAddon.toc");
-  has(b, "## Interface: 120007");
+  has(b, `## Interface: ${CURRENT_RETAIL}`);
   has(b, "TestAddon/Core.lua");
   has(b, "TestAddon/Templates.xml");
   has(b, "TestAddon/Options.lua");
@@ -334,7 +340,7 @@ await check("multi-flavor scaffold lists every interface", "wow_addon_scaffold",
   name: "MultiAddon",
   flavors: ["mainline", "vanilla"],
 }, (b) => {
-  has(b, "120007");
+  has(b, String(CURRENT_RETAIL));
   has(b, "11509");
 });
 
@@ -397,9 +403,20 @@ await check("finds a CVar with its options-UI label", "wow_cvar_search",
 await check("infers the value shape from how Blizzard reads it", "wow_cvar_search",
   { query: "colorblindMode" }, (b) => has(b, "boolean"));
 
+// The CVar that used to be here, nameplateShowOnlyNameForFriendlyPlayerUnits, is
+// set through the options screen with no direct GetCVar/SetCVar call. The test
+// asserted "never touches it" about it, so it was checking the bug rather than
+// the behavior. This one has neither a call nor a settings registration.
 await check("reports a CVar the UI never touches rather than hiding it", "wow_cvar_search",
-  { query: "nameplateShowOnlyNameForFriendlyPlayerUnits" }, (b) =>
+  { query: "nameplateCheckDistanceForTarget" }, (b) =>
     has(b, "never touches it"));
+
+await check("a CVar set only through the options screen is not called untouched", "wow_cvar_search",
+  { query: "nameplateShowOnlyNameForFriendlyPlayerUnits" }, (b) => {
+    lacks(b, "never touches it");
+    has(b, "options screen");
+    has(b, "UNIT_NAMEPLATES_FRIENDLY_PLAYER_SHOW_ONLY_NAME");
+  });
 
 await check("usedOnly drops registry-only entries", "wow_cvar_search",
   { query: "nameplate", usedOnly: true, limit: 20 }, (b) =>
@@ -555,13 +572,38 @@ await verify("writeIfChanged ignores generatedAt when deciding whether to write"
 });
 console.log("\n== Data staleness ==");
 
-await verify("fresh data carries no staleness warning", async () => {
-  const result = await byName.get("wow_cvar_search").handler({ query: "colorblindMode" });
-  const body = result.content.map((c) => c.text).join("\n");
-  assert.ok(
-    !body.includes("This answer comes from data synced"),
-    "synced today, so nothing should be flagged as stale",
-  );
+// This used to assert that the machine's data was fresh ("synced today"). That
+// was true the day it was written and false a month later, so the suite failed
+// for a reason unrelated to any change. The invariant worth testing is that the
+// warning appears exactly when the data is past the threshold, whatever age the
+// data on this machine happens to be, and that each flavor is aged on its own.
+await verify("the staleness warning tracks each flavor's own data age", async () => {
+  const { loadUiSourceGeneratedAt } = await import("../dist/uisource/index.js");
+  const { resolveFlavor } = await import("../dist/config.js");
+  const { ageInDays, STALE_AFTER_DAYS } = await import("../dist/tools/shared.js");
+
+  let checked = 0;
+  for (const id of ["mainline", "forever"]) {
+    const flavor = resolveFlavor(id);
+    const syncedAt = loadUiSourceGeneratedAt(flavor);
+    if (!syncedAt) continue; // not synced on this machine, so nothing to age
+
+    const result = await byName.get("wow_cvar_search").handler({
+      query: "colorblindMode",
+      flavor: id,
+    });
+    const body = result.content.map((c) => c.text).join("\n");
+    const flagged = body.includes("This answer comes from data synced");
+    const stale = ageInDays(syncedAt) >= STALE_AFTER_DAYS;
+
+    assert.equal(
+      flagged,
+      stale,
+      `${id}: data is ${ageInDays(syncedAt)} days old, warning shown: ${flagged}`,
+    );
+    checked++;
+  }
+  assert.ok(checked > 0, "no UI source synced at all, so this checked nothing");
 });
 
 await verify("the note fires past the threshold, and not before", async () => {
@@ -584,6 +626,186 @@ await verify("every synced-data tool declares its dataset", async () => {
   ];
   const missing = SYNCED.filter((n) => !tools.find((t) => t.name === n)?.dataset);
   assert.deepEqual(missing, [], `these would never warn when their data goes stale: ${missing}`);
+});
+
+console.log("\n== WoW Forever ==");
+
+// Blizzard's internal game type for WoW Forever is "camelot", and its UI source
+// is the retail codebase with Camelot overrides, so it is neither Classic Era
+// nor a Classic progression client. These pin the places where treating it like
+// one of those would give confident wrong answers.
+
+await verify("WoW Forever is its own flavor at Interface 16001", async () => {
+  const { resolveFlavor } = await import("../dist/config.js");
+  const f = resolveFlavor("forever");
+  assert.equal(f.interfaceVersion, 16001);
+  assert.equal(f.apiIndex, "forever", "must not share the classic or vanilla index");
+});
+
+await verify("Interface numbers sharing a major version resolve to the right flavor", async () => {
+  const { flavorForInterface } = await import("../dist/config.js");
+  // Classic Era (1.15.x) and WoW Forever (1.60.x) are both major 1.
+  assert.equal(flavorForInterface(16001).id, "forever");
+  assert.equal(flavorForInterface(16002).id, "forever", "a patch bump stays Forever");
+  assert.equal(flavorForInterface(11509).id, "vanilla");
+  assert.equal(flavorForInterface(11508).id, "vanilla", "an older Era number stays Era");
+  assert.equal(flavorForInterface(120100).id, "mainline");
+});
+
+await check("a .toc declaring 16001 is not judged against Classic Era", "wow_toc_validate", {
+  fileName: "Test.toc",
+  toc: "## Interface: 16001\n## Title: Test\nCore.lua\n",
+}, (b) => {
+  lacks(b, "behind the current");
+  lacks(b, "does not match any current client");
+  has(b, "WoW Forever");
+});
+
+await check("a multi-Interface line maps each number to its own flavor", "wow_toc_validate", {
+  fileName: "Test.toc",
+  toc: "## Interface: 16001, 50504, 11509\n## Title: Test\nCore.lua\n",
+}, (b) => {
+  has(b, "WoW Forever (Camelot)");
+  has(b, "Classic Era");
+  lacks(b, "does not match any current client");
+});
+
+await check("a newer Interface number is not called out of date", "wow_toc_validate", {
+  fileName: "Test.toc",
+  toc: "## Interface: 129999\n## Title: Test\nCore.lua\n",
+}, (b) => {
+  // This used to say "behind the current build" and suggest the *lower*
+  // number, telling authors targeting a PTR to downgrade.
+  lacks(b, "behind the current");
+  has(b, "newer than");
+});
+
+await verify("the shipped index for WoW Forever says what upstream does not publish", async () => {
+  const { readFile: rf } = await import("node:fs/promises");
+  const idx = JSON.parse(
+    await rf(new URL("../data/api-forever.json", import.meta.url), "utf8"),
+  );
+  assert.ok(idx.counts.functions > 1000, `only ${idx.counts.functions} functions`);
+  assert.equal(idx.upstream.resources, null, "there is no Ketho branch for it");
+  // Empty lists here mean "no source", not "this client has none".
+  for (const k of ["globals", "eventNames", "cvars"]) {
+    assert.ok(idx.unavailable.includes(k), `${k} should be marked unavailable`);
+  }
+});
+
+await verify("the manifest still lists every flavor after a single-flavor sync", async () => {
+  const { readFile: rf } = await import("node:fs/promises");
+  const m = JSON.parse(await rf(new URL("../data/manifest.json", import.meta.url), "utf8"));
+  for (const f of ["mainline", "classic", "vanilla", "forever"]) {
+    assert.ok(m.flavors[f], `manifest is missing ${f}`);
+  }
+});
+
+await check("API search answers from the WoW Forever index", "wow_api_search", {
+  query: "C_Item.GetItemInfo", flavor: "forever", limit: 1,
+}, (b) => {
+  has(b, "WoW Forever (Camelot)");
+  has(b, "C_Item.GetItemInfo");
+});
+
+await check("lint does not flag legacy globals it has no list for", "wow_lua_lint", {
+  flavor: "forever",
+  code: `local a = strsplit("-", "a-b")\ntinsert({}, 1)\nlocal x = DefinitelyNotABlizzardApi(1)`,
+}, (b) => {
+  lacks(b, "api/unknown");
+  lacks(b, "api/moved-to-namespace");
+  has(b, "api/unchecked");
+});
+
+await check("lint still catches removed API on WoW Forever", "wow_lua_lint", {
+  flavor: "forever",
+  code: `local name = UnitAura("player", 1)`,
+}, (b) => has(b, "C_UnitAuras.GetAuraDataByIndex"));
+
+await check("the same unknown call is still flagged on retail", "wow_lua_lint", {
+  flavor: "mainline",
+  code: `local x = DefinitelyNotABlizzardApi(1)`,
+}, (b) => {
+  // Guards against the Forever carve-out leaking: retail has a global list,
+  // so the unknown-function check must keep running there.
+  has(b, "api/unknown");
+  lacks(b, "api/unchecked");
+});
+
+await check("api diff does not claim a bare name is absent when it cannot know", "wow_api_diff", {
+  name: "strsplit",
+}, (b) => has(b, "may still be a legacy global"));
+
+await check("api diff stays definite for a qualified name", "wow_api_diff", {
+  name: "C_DefinitelyNotAnApi.Nothing",
+}, (b) => has(b, "NOT AVAILABLE"));
+
+await verify("a CVar hit with no registry is not reported as unregistered", async () => {
+  const { searchCVars, renderCVar } = await import("../dist/uisource/cvars.js");
+  const used = [{ name: "someCVar", refs: 3, files: ["a.lua"], accessors: ["GetCVar"] }];
+  const hits = searchCVars("someCVar", new Set(), new Map(), used, 5, false);
+  assert.equal(hits.length, 1);
+  assert.ok(!renderCVar(hits[0]).includes("not listed"), "there is no registry to be missing from");
+});
+
+await verify("a CVar set only through the options screen is not called untouched", async () => {
+  const { renderCVar } = await import("../dist/uisource/cvars.js");
+  const optionsOnly = renderCVar({
+    name: "onlyInOptions", refs: 0, files: [], accessors: [],
+    labelKey: "SOME_LABEL", tooltipKey: "OPTION_TOOLTIP_SOME_LABEL", known: true,
+  });
+  // 134 of 524 CVars in the WoW Forever UI index look like this. They have no
+  // direct GetCVar/SetCVar call but are registered in the settings screen.
+  assert.ok(!optionsOnly.includes("never touches"), optionsOnly);
+  assert.ok(optionsOnly.includes("options screen"), optionsOnly);
+  assert.ok(optionsOnly.includes("SOME_LABEL"), "the label it has must not be dropped");
+  assert.ok(!optionsOnly.includes("seen in:"), "no files means no dangling header");
+
+  const untouched = renderCVar({
+    name: "unused", refs: 0, files: [], accessors: [], known: true,
+  });
+  assert.ok(untouched.includes("never touches"), "genuinely unused CVars still say so");
+});
+
+await verify("an unsynced flavor never gets another flavor's UI source", async () => {
+  const { loadUiSource } = await import("../dist/uisource/index.js");
+  const { FLAVORS } = await import("../dist/config.js");
+  for (const flavor of Object.values(FLAVORS)) {
+    try {
+      const src = loadUiSource(flavor);
+      // Whatever machine this runs on, a returned index must be the one asked
+      // for. It used to fall back to retail, silently.
+      assert.equal(src.raw.flavor, flavor.apiIndex, `${flavor.id} was answered from ${src.raw.flavor}`);
+    } catch (err) {
+      assert.match(err.message, /sync/i, `${flavor.id}: an error must say how to fix it`);
+    }
+  }
+});
+
+await verify("a WoW Forever install is detected under _classic_beta_", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { findInstallations } = await import("../dist/config.js");
+
+  const root = mkdtempSync(join(tmpdir(), "wowroot-"));
+  const prior = process.env.WOW_INSTALL_PATH;
+  try {
+    mkdirSync(join(root, "_classic_beta_", "Interface", "AddOns"), { recursive: true });
+    writeFileSync(
+      join(root, ".build.info"),
+      "Branch!STRING:0|Product!STRING:0|Version!STRING:0\nus|wow_classic_beta|1.60.1.69893\n",
+    );
+    process.env.WOW_INSTALL_PATH = root;
+    const found = findInstallations();
+    assert.equal(found.length, 1);
+    assert.equal(found[0].flavor.id, "forever");
+    assert.equal(found[0].build, "1.60.1.69893", "the build must come from the wow_classic_beta row");
+  } finally {
+    if (prior === undefined) delete process.env.WOW_INSTALL_PATH;
+    else process.env.WOW_INSTALL_PATH = prior;
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 console.log("\n== Local install ==");

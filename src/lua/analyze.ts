@@ -389,7 +389,12 @@ export function analyzeLua(source: string, opts: AnalyzeOptions): AnalysisResult
     }
 
     // -- moved into a namespace (derived from the index) ----------------------
-    if (!isLocal && q.parts.length === 1 && !LUA_BASE_GLOBALS.has(q.name)) {
+    if (
+      index.hasGlobalList &&
+      !isLocal &&
+      q.parts.length === 1 &&
+      !LUA_BASE_GLOBALS.has(q.name)
+    ) {
       const callable = index.callableSet.has(q.name);
       if (!callable && !declaredGlobals.has(q.name)) {
         const replacements = rankReplacements(findNamespacedReplacements(index, q.name));
@@ -430,7 +435,7 @@ export function analyzeLua(source: string, opts: AnalyzeOptions): AnalysisResult
     }
 
     // -- namespaced call that does not exist in this flavor -------------------
-    if (q.parts.length > 1 && !q.isMethod && index.namespaces.has(root)) {
+    if (index.hasGlobalList && q.parts.length > 1 && !q.isMethod && index.namespaces.has(root)) {
       // `callableSet` is the union of the generated documentation and the flat
       // global list. The documentation alone is incomplete — several namespaces
       // (C_PetBattles among them) expose functions it never describes — so
@@ -505,6 +510,25 @@ export function analyzeLua(source: string, opts: AnalyzeOptions): AnalysisResult
       }
     }
   });
+
+  // The two "does not exist" checks above treat a name missing from
+  // `callableSet` as removed. Without upstream's flat global list that set is
+  // the generated docs alone, which omits real functions, so those checks stay
+  // off rather than flag working code. Say so once, or a clean result would
+  // read as "everything here was verified".
+  if (!index.hasGlobalList) {
+    add({
+      rule: "api/unchecked",
+      severity: "info",
+      line: 1,
+      column: 1,
+      message:
+        `Unknown-function checks are off for ${opts.flavor.label}: upstream does ` +
+        "not publish a global function list for this client yet, so a missing " +
+        "name cannot be told apart from an undocumented one. Known-removed API, " +
+        "taint and event checks still run.",
+    });
+  }
 
   diagnostics.sort((a, b) => a.line - b.line || a.column - b.column);
 

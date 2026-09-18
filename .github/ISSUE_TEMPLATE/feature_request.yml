@@ -49,5 +49,6 @@ body:
         - wrath
         - tbc
         - vanilla (Classic Era)
+        - forever (WoW Forever)
     validations:
       required: false

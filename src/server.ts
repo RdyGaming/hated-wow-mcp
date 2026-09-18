@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+import { resolveFlavor } from "./config.js";
 import { loadAtlasGeneratedAt, loadFilesGeneratedAt } from "./gamedata/files.js";
 import { PKG_ROOT } from "./paths.js";
 import { apiTools } from "./tools/api.tools.js";
@@ -42,9 +43,17 @@ function withStalenessNote(tool: ToolDef): ToolDef {
       const result = await tool.handler(args);
       if (result.isError) return result;
 
+      // Age the flavor the caller asked about, not whichever was indexed first.
+      let flavor;
+      try {
+        flavor = resolveFlavor(args?.flavor as string | undefined);
+      } catch {
+        flavor = undefined;
+      }
+
       const generatedAt =
         tool.dataset === "uisource"
-          ? loadUiSourceGeneratedAt()
+          ? loadUiSourceGeneratedAt(flavor)
           : (loadFilesGeneratedAt() ?? loadAtlasGeneratedAt());
       const note = stalenessNote(generatedAt, tool.dataset!);
       if (!note) return result;

@@ -21,7 +21,7 @@ import type { UiCVar } from "./index.js";
 
 export interface CVarHit extends UiCVar {
   /** True when the client's own CVar registry lists this name. */
-  known: boolean;
+  known?: boolean;
   /** The registry entry — default, category, scope, protection, description. */
   registry?: ApiCVar;
 }
@@ -37,6 +37,7 @@ export function searchCVars(
   registryByName: Map<string, ApiCVar>,
   used: UiCVar[] | undefined,
   limit: number,
+  registryAvailable = true,
 ): CVarHit[] {
   const byName = new Map<string, CVarHit>();
 
@@ -45,7 +46,9 @@ export function searchCVars(
     const entry = registryByName.get(key);
     byName.set(key, {
       ...cvar,
-      known: registry.has(cvar.name),
+      // With no registry to check against, "is it listed" has no answer.
+      // Leaving `known` unset stops every hit being reported as unregistered.
+      ...(registryAvailable ? { known: registry.has(cvar.name) } : {}),
       ...(entry ? { registry: entry } : {}),
     });
   }
@@ -69,6 +72,19 @@ export function searchCVars(
     .sort((a, b) => b.score - a.score || a.hit.name.localeCompare(b.hit.name))
     .slice(0, limit)
     .map((s) => s.hit);
+}
+
+/**
+ * Whether Blizzard's own UI reads or writes this CVar.
+ *
+ * A direct GetCVar/SetCVar call is one way. The other is the options screen: a
+ * CVar registered through `Settings.SetupCVar*` is read and written by the
+ * control on the caller's behalf, with no call to find. Of the 524 CVars in the
+ * WoW Forever UI index, 134 are like this, so counting only direct calls would
+ * call a fifth of them "never touched" while showing their settings label.
+ */
+export function isUsedByUi(hit: CVarHit): boolean {
+  return hit.refs > 0 || Boolean(hit.labelKey || hit.varType);
 }
 
 /** Best guess at the value shape, from how Blizzard reads it. */
@@ -114,17 +130,19 @@ export function renderCVar(hit: CVarHit): string {
     lines.push(`  type:      ${type}${hit.varType ? "" : "  (inferred from usage)"}`);
   }
 
-  if (!hit.known) {
+  if (hit.known === false) {
     lines.push("  registry:  not listed — registered at runtime, or removed");
   }
 
-  if (hit.refs === 0) {
+  if (!isUsedByUi(hit)) {
     lines.push("  usage:     Blizzard's UI never touches it — no usage to learn from");
     return lines.join("\n");
   }
 
   lines.push(
-    `  usage:     ${hit.refs} reference${hit.refs === 1 ? "" : "s"} via ${hit.accessors.join(", ")}`,
+    hit.refs === 0
+      ? "  usage:     set through Blizzard's options screen, with no direct GetCVar/SetCVar calls"
+      : `  usage:     ${hit.refs} reference${hit.refs === 1 ? "" : "s"} via ${hit.accessors.join(", ")}`,
   );
 
   if (hit.labelKey) {
@@ -134,8 +152,10 @@ export function renderCVar(hit: CVarHit): string {
     if (hit.tooltipKey) lines.push(`             tooltip _G["${hit.tooltipKey}"]`);
   }
 
-  lines.push("  seen in:");
-  for (const file of hit.files) lines.push(`    ${file}`);
+  if (hit.files.length > 0) {
+    lines.push("  seen in:");
+    for (const file of hit.files) lines.push(`    ${file}`);
+  }
 
   return lines.join("\n");
 }

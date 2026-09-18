@@ -46,7 +46,7 @@ export interface ApiTable {
 export interface ApiIndex {
   flavor: string;
   generatedAt: string;
-  upstream: { uiSource: string; resources: string };
+  upstream: { uiSource: string; resources: string | null };
   counts: Record<string, number>;
   functions: ApiFunction[];
   events: ApiEvent[];
@@ -60,6 +60,13 @@ export interface ApiIndex {
    * loader normalises both, so an old bundled index still works.
    */
   cvars: ApiCVar[] | string[];
+  /**
+   * Which of `globals`, `eventNames` and `cvars` upstream does not publish for
+   * this client. Empty means "we tried and this many exist"; listed here means
+   * "there is no source", which is not the same thing and must not be read as
+   * "this client has none". Absent in indexes for the older flavors.
+   */
+  unavailable?: string[];
 }
 
 export interface ApiCVar {

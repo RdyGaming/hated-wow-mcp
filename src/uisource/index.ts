@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 
-import { DATA_PATHS, dataMissingMessage, type Flavor } from "../config.js";
+import { DATA_PATHS, dataMissingMessage, syncCommand, type Flavor } from "../config.js";
 
 export interface UiFile {
   path: string;
@@ -125,13 +125,19 @@ export function loadUiSource(flavor: Flavor): LoadedUiSource {
     }
   }
 
-  // Only the three indexed flavors exist; the Classic progression flavors
-  // share the `classic` index the same way the API index does.
-  const key = flavor.apiIndex === "vanilla" ? "vanilla" : flavor.apiIndex;
-  const loaded = cache[key] ?? cache.mainline;
+  // The Classic progression flavors share the `classic` index the same way the
+  // API index does; Classic Era and WoW Forever each have their own.
+  const key = flavor.apiIndex;
+  const loaded = cache[key];
   if (!loaded) {
+    // This used to fall back to the retail index, which answered a Classic or
+    // WoW Forever question with retail Lua and templates that may not exist
+    // there, with nothing to say it had. That is the confident-but-wrong answer
+    // this server exists to prevent, so say what is missing and how to get it.
     throw new Error(
-      `${UI_SOURCE_MISSING}\n\n(No index found for "${key}" — run the sync with that flavor.)`,
+      `The Blizzard UI source for ${flavor.label} has not been synced.\n\n` +
+        `Run \`${syncCommand("ui-source", key)}\` to fetch and index it.\n` +
+        `Synced so far: ${Object.keys(cache).join(", ") || "nothing"}.`,
     );
   }
   return loaded;
@@ -142,9 +148,15 @@ export function loadUiSource(flavor: Flavor): LoadedUiSource {
  * throws: this exists to annotate answers, and failing to annotate must not
  * turn a working answer into an error.
  */
-export function loadUiSourceGeneratedAt(): string | undefined {
+export function loadUiSourceGeneratedAt(flavor?: Flavor): string | undefined {
   try {
-    return Object.values(loadAll())[0]?.generatedAt;
+    const all = loadAll();
+    // Age is per flavor: a stale Classic index must not flag fresh retail
+    // answers, or the reverse. With no flavor, report the oldest.
+    if (flavor) return all[flavor.apiIndex]?.generatedAt;
+    return Object.values(all)
+      .map((i) => i.generatedAt)
+      .sort()[0];
   } catch {
     return undefined;
   }

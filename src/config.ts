@@ -15,9 +15,11 @@ export const DATA_DIR = BUNDLED_DIR;
  * filename suffix the client looks for, and which API index describes it.
  *
  * `apiIndex` deliberately maps several flavors onto the same index — Blizzard
- * only publishes generated documentation for the three clients that are
- * actually running (retail, the current Classic progression client, and
- * Classic Era), so the older progression flavors reuse the nearest index.
+ * only publishes generated documentation for the clients that are actually
+ * running (retail, the current Classic progression client, Classic Era, and
+ * WoW Forever), so the older progression flavors reuse the nearest index.
+ * WoW Forever does not share one: it is built on the retail codebase, so
+ * reusing a Classic index would describe the wrong API surface.
  */
 export interface Flavor {
   id: string;
@@ -29,14 +31,14 @@ export interface Flavor {
   /** Additional suffixes the client also accepts for this flavor. */
   altTocSuffixes: string[];
   /** Which bundled api-*.json describes this client. */
-  apiIndex: "mainline" | "classic" | "vanilla";
+  apiIndex: "mainline" | "classic" | "vanilla" | "forever";
 }
 
 export const FLAVORS: Record<string, Flavor> = {
   mainline: {
     id: "mainline",
     label: "Retail (Midnight)",
-    interfaceVersion: 120007,
+    interfaceVersion: 120100,
     tocSuffix: "_Mainline",
     altTocSuffixes: ["_Standard"],
     apiIndex: "mainline",
@@ -81,6 +83,19 @@ export const FLAVORS: Record<string, Flavor> = {
     altTocSuffixes: ["_Classic"],
     apiIndex: "vanilla",
   },
+  // Blizzard's internal game type for this client is "camelot". It is built on
+  // the retail (Mainline) codebase with Camelot overrides, not on the Classic
+  // one, so it has its own API index rather than sharing `classic` or
+  // `vanilla`. There is deliberately no filename suffix: Blizzard's own addons
+  // gate on `[AllowLoadGameType camelot]` inline, and no `_Camelot.toc` exists.
+  forever: {
+    id: "forever",
+    label: "WoW Forever (Camelot)",
+    interfaceVersion: 16001,
+    tocSuffix: "",
+    altTocSuffixes: [],
+    apiIndex: "forever",
+  },
 };
 
 export type FlavorId = keyof typeof FLAVORS;
@@ -106,9 +121,18 @@ export function flavorForInterface(version: number): Flavor | undefined {
   // Interface numbers encode the patch: 120007 -> 12.0.7, 11509 -> 1.15.9.
   // Matching on the major version is what survives weekly patch bumps.
   const major = Math.floor(version / 10000);
-  return Object.values(FLAVORS).find(
+  const sameMajor = Object.values(FLAVORS).filter(
     (f) => Math.floor(f.interfaceVersion / 10000) === major,
   );
+
+  // Classic Era (1.15.x) and WoW Forever (1.60.x) are both major 1, so the
+  // major alone cannot tell them apart. Nearest wins: 16001 is Forever, 11508
+  // is Era. A first-match `find` here would judge every Forever addon against
+  // Era's number and call it out of date.
+  return sameMajor.sort(
+    (a, b) =>
+      Math.abs(version - a.interfaceVersion) - Math.abs(version - b.interfaceVersion),
+  )[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +150,7 @@ const INSTALL_DIRS: Record<string, string> = {
   cata: "_classic_",
   wrath: "_classic_",
   tbc: "_classic_",
+  forever: "_classic_beta_",
 };
 
 /** Places a stock WoW install lands, in the order we should try them. */
@@ -193,7 +218,13 @@ function readBuild(root: string, flavorDir: string): string | undefined {
     // `.build.info` lists every installed product; match the one whose
     // product tag corresponds to this flavor directory.
     const wanted =
-      flavorDir === "_retail_" ? "wow" : flavorDir === "_classic_era_" ? "wow_classic_era" : "wow_classic";
+      flavorDir === "_retail_"
+        ? "wow"
+        : flavorDir === "_classic_era_"
+          ? "wow_classic_era"
+          : flavorDir === "_classic_beta_"
+            ? "wow_classic_beta"
+            : "wow_classic";
     for (const line of lines.slice(1)) {
       const cols = line.split("|");
       if (productCol === -1 || cols[productCol] === wanted) return cols[versionCol];
@@ -278,10 +309,15 @@ export function bundledDataMessage(): string {
     : "Reinstall the package: `npm install hated-wow-mcp@latest`.";
 }
 
+export function syncCommand(sync: string, args = ""): string {
+  const tail = args ? ` -- ${args}` : "";
+  return isCheckout()
+    ? `npm run sync-${sync}${tail}`
+    : `npx -y hated-wow-mcp sync ${sync}${tail}`;
+}
+
 export function dataMissingMessage(what: string, sync: string): string {
-  const command = isCheckout()
-    ? `npm run sync-${sync}`
-    : `npx -y hated-wow-mcp sync ${sync}`;
+  const command = syncCommand(sync);
 
   return [
     `The ${what} data set has not been built yet.`,

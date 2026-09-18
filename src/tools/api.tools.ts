@@ -138,7 +138,7 @@ export const apiTools: ToolDef[] = [
       title: "Compare API availability across clients",
       description:
         "Check whether a function, event or type exists in each game client " +
-        "(retail, Classic progression, Classic Era). Use this before writing code " +
+        "(retail, Classic progression, Classic Era, WoW Forever). Use this before writing code " +
         "that has to run on more than one flavor, or to explain why something " +
         "works on Classic but not retail.",
       inputSchema: {
@@ -151,7 +151,7 @@ export const apiTools: ToolDef[] = [
       const target = name as string;
       const lines: string[] = [`Availability of "${target}":`, ""];
 
-      for (const flavorId of ["mainline", "mists", "vanilla"]) {
+      for (const flavorId of ["mainline", "mists", "vanilla", "forever"]) {
         const f = resolveFlavor(flavorId);
         const index = loadIndex(f);
 
@@ -174,9 +174,17 @@ export const apiTools: ToolDef[] = [
         if (isEvent) found.push("valid event");
         if (type) found.push(`${type.kind} table`);
 
-        lines.push(
-          `  ${f.label.padEnd(34)} ${found.length ? found.join("; ") : "NOT AVAILABLE"}`,
-        );
+        // With no global list for this client, a bare name that is not
+        // documented might still be a legacy global, so "NOT AVAILABLE" would
+        // be a claim we cannot back. Qualified names, events and types are
+        // fully covered by the generated docs, so those stay definite.
+        const verdict = found.length
+          ? found.join("; ")
+          : !index.hasGlobalList && !target.includes(".")
+            ? "not documented (no global list published, may still be a legacy global)"
+            : "NOT AVAILABLE";
+
+        lines.push(`  ${f.label.padEnd(34)} ${verdict}`);
       }
 
       // A bare name missing everywhere usually means it moved into a namespace,
@@ -208,10 +216,11 @@ export const apiTools: ToolDef[] = [
     handler: async () => {
       const lines: string[] = ["WoW MCP server — loaded data sets", ""];
 
-      for (const flavorId of ["mainline", "mists", "vanilla"]) {
+      for (const flavorId of ["mainline", "mists", "vanilla", "forever"]) {
         const f = resolveFlavor(flavorId);
         try {
           const index = loadIndex(f);
+          const missing = index.raw.unavailable ?? [];
           lines.push(
             `  ${f.label}`,
             `    index:    ${index.raw.upstream.uiSource}`,
@@ -219,6 +228,9 @@ export const apiTools: ToolDef[] = [
             `    contents: ${Object.entries(index.raw.counts)
               .map(([k, v]) => `${v} ${k}`)
               .join(", ")}`,
+            ...(missing.length
+              ? [`    no upstream source yet: ${missing.join(", ")}`]
+              : []),
             "",
           );
         } catch (err) {

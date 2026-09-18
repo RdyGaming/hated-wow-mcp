@@ -100,6 +100,25 @@ listfile — a few minutes on first run. Re-running later is cheap: an unchanged
 listfile is revalidated rather than re-downloaded, so a no-op sync takes about
 two seconds.
 
+### Classic and WoW Forever
+
+`sync all` indexes **retail's** UI source. The other clients are one command
+each, and every sync adds to the same index rather than replacing it:
+
+```bash
+npx -y hated-wow-mcp sync ui-source -- forever   # WoW Forever (Camelot)
+npx -y hated-wow-mcp sync ui-source -- classic   # Mists / Cata / Wrath / TBC
+npx -y hated-wow-mcp sync ui-source -- vanilla   # Classic Era
+```
+
+Ask a tool about a client you have not synced and it says so and gives you the
+command. It does not fall back to retail's source, which would answer with
+code that may not exist on that client.
+
+The API index for all four clients ships in the package, so `flavor: "forever"`
+works on API search, linting and `.toc` validation with no sync at all. See
+[Known limits](#known-limits) for what upstream does not publish for it yet.
+
 ### Verify it worked
 
 Ask your assistant: *"Using the WoW MCP, what does C_Item.GetItemInfo return?"*
@@ -143,7 +162,7 @@ npm run sync-all
 npm test
 ```
 
-`npm test` should report **65 passed, 0 failed**. On Windows, `setup.cmd` does
+`npm test` should report **86 passed, 0 failed**. On Windows, `setup.cmd` does
 all five steps and prints the absolute path you need below.
 
 A clone keeps its synced data in `data/` beside the source rather than in the OS
@@ -219,7 +238,7 @@ All settings are optional — see `.env.example`.
 
 | Variable | Purpose |
 | --- | --- |
-| `WOW_DEFAULT_FLAVOR` | Client to answer for when a tool call doesn't name one: `mainline`, `mists`, `cata`, `wrath`, `tbc`, `vanilla`. Defaults to `mainline`. |
+| `WOW_DEFAULT_FLAVOR` | Client to answer for when a tool call doesn't name one: `mainline`, `mists`, `cata`, `wrath`, `tbc`, `vanilla`, `forever`. Defaults to `mainline`. |
 | `WOW_INSTALL_PATH` | Your WoW folder. Auto-detected if unset. |
 | `WOW_ADDON_PATH` | AddOns folder the file tools read and write. Confines them to that directory. |
 
@@ -389,7 +408,7 @@ src/
   paths.ts             bundled vs. synced data locations
 server.js              local web UI backend (npm run web)
 index.html             local web UI frontend
-test/smoke.mjs         65 end-to-end checks against real data
+test/smoke.mjs         86 end-to-end checks against real data
 data/                  bundled API indexes, plus synced ones in a clone
 ```
 
@@ -401,8 +420,21 @@ data/                  bundled API indexes, plus synced ones in a clone
   the server does not know that `Button` inherits it from `Frame`. Searching the
   bare method name works.
 - **Classic progression flavors share one index.** Blizzard publishes generated
-  docs for three running clients; Cata/Wrath/TBC map onto the Classic index, so
-  answers for those are approximate.
+  docs for the clients that are actually running; Cata/Wrath/TBC map onto the
+  Classic index, so answers for those are approximate.
+- **WoW Forever is missing three lists.** Its client is built on the retail
+  codebase (Blizzard calls the game type `camelot`), so it has its own index,
+  and the API docs and UI source come from Blizzard's own files like every other
+  client. But the community resource repo that supplies the flat global-function
+  list, the event list and the CVar registry has no branch for it yet. So on
+  `forever`: unknown-function lint checks are turned off (with a note saying so,
+  rather than flagging working code), a bare name in `wow_api_diff` reads "not
+  documented" instead of "not available", and `wow_cvar_search` shows only the
+  CVars Blizzard's UI touches, with no defaults, descriptions or protection
+  flags. Once upstream has a branch for it, picking these up is a one-line
+  change to the branch table in `src/sync/api.ts`.
+- **The atlas index is retail only.** `wow_atlas_search` answers from one
+  retail build; WoW Forever's atlases are not indexed separately yet.
 - **No BLP decoding.** Art tools return paths, FileDataIDs and atlas coordinates
   — not rendered images. Extracting actual textures needs a CASC tool such as
   wow.export against your own installation.
