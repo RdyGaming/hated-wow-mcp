@@ -14,10 +14,14 @@
  * addon code can actually reference. Pass --full to also emit the complete
  * listfile for model and map work.
  *
+ * The atlas is built per client, since atlases differ between them. With no
+ * client named, that is the default client plus every one found installed.
+ *
  * Usage:
  *   npm run sync-game-data
+ *   npm run sync-game-data -- forever          # one client: mainline, classic, vanilla, forever
  *   npm run sync-game-data -- --full
- *   npm run sync-game-data -- --build 12.0.7.60000
+ *   npm run sync-game-data -- forever --build 1.60.1.69913
  *   npm run sync-game-data -- --force   # ignore the cache and rebuild
  */
 
@@ -27,7 +31,9 @@ import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { resolve } from "node:path";
 
+import { DATA_PATHS, defaultSyncIndexes } from "../config.js";
 import { cacheRoot } from "../paths.js";
+import { WAGO_PRODUCT, pickLatestBuild, type WagoBuild } from "./wago.js";
 
 // Both indexes are heavy and rebuilt from upstream, so they belong in the
 // writable cache root rather than inside the package. See src/paths.ts.
@@ -382,9 +388,26 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const full = args.includes("--full");
   const buildIdx = args.indexOf("--build");
-  const build = buildIdx !== -1 ? args[buildIdx + 1] : undefined;
+  const explicitBuild = buildIdx !== -1 ? args[buildIdx + 1] : undefined;
   const skipAtlas = args.includes("--no-atlas");
   const force = args.includes("--force");
+
+  // Positional arguments name the clients to build atlases for. The value after
+  // --build is not one of them.
+  const requested = args.filter(
+    (a, i) => !a.startsWith("-") && !(buildIdx !== -1 && i === buildIdx + 1),
+  );
+  const unknown = requested.filter((k) => !(k in WAGO_PRODUCT));
+  if (unknown.length > 0) {
+    process.stderr.write(
+      `Unknown client "${unknown[0]}". Expected one of: ${Object.keys(WAGO_PRODUCT).join(", ")}\n`,
+    );
+    process.exit(1);
+  }
+  if (explicitBuild && requested.length > 1) {
+    process.stderr.write("--build names one build, so it needs exactly one client after it.\n");
+    process.exit(1);
+  }
 
   await mkdir(DATA_DIR, { recursive: true });
 
@@ -404,20 +427,65 @@ async function main(): Promise<void> {
     return;
   }
 
+  // With no client named, follow the same rule as the UI source sync: the
+  // default client plus every one found installed.
+  let keys = requested;
+  if (keys.length === 0) {
+    const chosen = defaultSyncIndexes();
+    keys = chosen.keys.filter((k) => k in WAGO_PRODUCT);
+    process.stderr.write(`atlas for: ${keys.join(", ")}\n`);
+  }
+
+  for (const key of keys) {
+    try {
+      // Non-retail clients must have an exact build. "latest" means retail on
+      // wago, so falling back to it would write retail atlases under this
+      // client's name, and a search would confidently return the wrong art.
+      const build = explicitBuild ?? (await resolveBuild(key));
+      if (!build && key !== "mainline") {
+        throw new Error(
+          `could not find the latest ${WAGO_PRODUCT[key]} build on wago.tools, ` +
+            "and guessing would risk indexing the wrong client's atlases. Pass --build.",
+        );
+      }
+
+      const atlas = await buildAtlasIndex(build);
+      const atlasPath = DATA_PATHS.atlasFor(key);
+      await writeFile(
+        atlasPath,
+        JSON.stringify({ ...atlas, flavor: key, product: WAGO_PRODUCT[key] }),
+        "utf8",
+      );
+      process.stderr.write(
+        `wrote ${atlasPath} [${key}, build ${atlas.build}] (${JSON.stringify(atlas.counts)})\n`,
+      );
+    } catch (err) {
+      process.stderr.write(
+        `\nAtlas sync failed for ${key}: ${(err as Error).message}\n` +
+          "The file index above is complete and usable on its own; only the\n" +
+          "wow_atlas_* tools need this step. wago.tools blocks some networks and\n" +
+          "cloud egress ranges, so re-run this from a normal desktop connection.\n",
+      );
+    }
+  }
+}
+
+let buildList: Record<string, WagoBuild[]> | null = null;
+
+/** The newest real build for a client, from wago's build list (fetched once). */
+async function resolveBuild(key: string): Promise<string | undefined> {
   try {
-    const atlas = await buildAtlasIndex(build);
-    const atlasPath = resolve(DATA_DIR, "atlas-index.json");
-    await writeFile(atlasPath, JSON.stringify(atlas), "utf8");
-    process.stderr.write(`wrote ${atlasPath} (${JSON.stringify(atlas.counts)})\n`);
+    if (!buildList) {
+      const res = await fetch(`${WAGO_BASE}/api/builds`, {
+        headers: { "user-agent": "wow-mcp-server/sync" },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      buildList = (await res.json()) as Record<string, WagoBuild[]>;
+    }
+    return pickLatestBuild(buildList, WAGO_PRODUCT[key]!);
   } catch (err) {
-    process.stderr.write(
-      `\nAtlas sync failed: ${(err as Error).message}\n` +
-        "The file index above is complete and usable on its own; only the\n" +
-        "wow_atlas_* tools need this step. wago.tools blocks some networks and\n" +
-        "cloud egress ranges — re-run this script from a normal desktop\n" +
-        "connection to populate the atlas index.\n",
-    );
-    process.exitCode = 0;
+    process.stderr.write(`could not read wago.tools' build list: ${(err as Error).message}\n`);
+    return undefined;
   }
 }
 

@@ -10,7 +10,7 @@ import {
   searchFunctions,
   searchTables,
 } from "../wowapi/search.js";
-import { text, type ToolDef } from "./shared.js";
+import { READ_ONLY, text, type ToolDef } from "./shared.js";
 
 const flavorArg = z
   .enum(FLAVOR_IDS)
@@ -22,6 +22,7 @@ export const apiTools: ToolDef[] = [
     name: "wow_api_search",
     config: {
       title: "Search the in-game Lua API",
+      annotations: READ_ONLY,
       description:
         "Search World of Warcraft's in-game Lua API — the functions an addon can " +
         "call from inside the client. Covers namespaced functions (C_Item.GetItemInfo), " +
@@ -71,6 +72,7 @@ export const apiTools: ToolDef[] = [
     name: "wow_api_event_search",
     config: {
       title: "Search in-game events",
+      annotations: READ_ONLY,
       description:
         "Search the events an addon can register with frame:RegisterEvent, and " +
         "show each event's payload arguments in order. Use this whenever writing " +
@@ -101,6 +103,7 @@ export const apiTools: ToolDef[] = [
     name: "wow_api_type_search",
     config: {
       title: "Search API enums, structures and constants",
+      annotations: READ_ONLY,
       description:
         "Search the Enum.*, Constants.* and structure tables the in-game API uses " +
         "— for example Enum.ItemQuality or the AuraData structure returned by " +
@@ -136,6 +139,7 @@ export const apiTools: ToolDef[] = [
     name: "wow_api_diff",
     config: {
       title: "Compare API availability across clients",
+      annotations: READ_ONLY,
       description:
         "Check whether a function, event or type exists in each game client " +
         "(retail, Classic progression, Classic Era, WoW Forever). Use this before writing code " +
@@ -207,6 +211,7 @@ export const apiTools: ToolDef[] = [
     name: "wow_api_stats",
     config: {
       title: "Show what API data is loaded",
+      annotations: READ_ONLY,
       description:
         "Report which API index, UI source and game data sets this server has, " +
         "when each was synced, and how large it is. Use this to confirm the data " +

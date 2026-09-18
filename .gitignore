@@ -16,4 +16,4 @@ data/uisource/
 data/uisource-index.json
 # ~14MB listfile index
 data/files-index.json
-data/atlas-index.json
+data/atlas-index*.json

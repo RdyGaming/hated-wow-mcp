@@ -1,6 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 
-import { DATA_PATHS, dataMissingMessage } from "../config.js";
+import {
+  DATA_PATHS,
+  RUN_IT_YOURSELF,
+  dataMissingMessage,
+  resolveFlavor,
+  syncCommand,
+  type Flavor,
+} from "../config.js";
+import { cacheRoot } from "../paths.js";
 import { scoreName } from "../wowapi/search.js";
 
 export interface FileEntry {
@@ -149,34 +157,58 @@ export interface AtlasEntry {
 export interface AtlasIndex {
   generatedAt: string;
   build: string;
+  /** Index key this was built for. Absent in a retail index from before there was one per client. */
+  flavor?: string;
+  /** The wago product the build came from, e.g. wow_classic_beta. */
+  product?: string;
   counts: Record<string, number>;
   atlases: AtlasEntry[];
 }
 
-let atlasCache: { raw: AtlasIndex; byName: Map<string, AtlasEntry> } | null = null;
+const atlasCache = new Map<string, { raw: AtlasIndex; byName: Map<string, AtlasEntry> }>();
 
-export const ATLAS_MISSING = [
-  dataMissingMessage("texture atlas", "game-data"),
-  "",
-  "Atlas data comes from wago.tools, which blocks some cloud and datacentre",
-  "networks. If the sync reports HTTP 403, run it from a normal desktop",
-  "connection; the rest of the game-data sync works either way.",
-].join("\n");
+function atlasMissing(flavor: Flavor): string {
+  return [
+    `The texture atlas index for ${flavor.label} has not been built yet.`,
+    "",
+    `Run \`${syncCommand("game-data", flavor.apiIndex)}\` to fetch and index it.`,
+    "That sync downloads from public mirrors and needs outbound network access.",
+    RUN_IT_YOURSELF,
+    "",
+    `It will be written to ${cacheRoot()}`,
+    "",
+    "Atlas data comes from wago.tools, which blocks some cloud and datacentre",
+    "networks. If the sync reports HTTP 403, run it from a normal desktop",
+    "connection; the rest of the game-data sync works either way.",
+  ].join("\n");
+}
 
-export function loadAtlas(): { raw: AtlasIndex; byName: Map<string, AtlasEntry> } {
-  if (atlasCache) return atlasCache;
-  if (!existsSync(DATA_PATHS.atlas)) throw new Error(ATLAS_MISSING);
+/**
+ * The atlas index for one client. Atlases differ between clients, so each has
+ * its own file. With no flavor given, the default flavor's is used, matching
+ * what every other tool does.
+ */
+export function loadAtlas(flavor?: Flavor): { raw: AtlasIndex; byName: Map<string, AtlasEntry> } {
+  const resolved = flavor ?? resolveFlavor();
+  const key = resolved.apiIndex;
 
-  const raw = JSON.parse(readFileSync(DATA_PATHS.atlas, "utf8")) as AtlasIndex;
-  atlasCache = {
+  const cached = atlasCache.get(key);
+  if (cached) return cached;
+
+  const path = DATA_PATHS.atlasFor(key);
+  if (!existsSync(path)) throw new Error(atlasMissing(resolved));
+
+  const raw = JSON.parse(readFileSync(path, "utf8")) as AtlasIndex;
+  const loaded = {
     raw,
     byName: new Map(raw.atlases.map((a) => [a.name.toLowerCase(), a])),
   };
-  return atlasCache;
+  atlasCache.set(key, loaded);
+  return loaded;
 }
 
-export function searchAtlas(query: string, limit = 40): AtlasEntry[] {
-  const { raw } = loadAtlas();
+export function searchAtlas(query: string, limit = 40, flavor?: Flavor): AtlasEntry[] {
+  const { raw } = loadAtlas(flavor);
   return raw.atlases
     .map((a) => ({ a, score: scoreName(a.name, query) }))
     .filter((s) => s.score > 0)
@@ -216,9 +248,9 @@ export function loadFilesGeneratedAt(): string | undefined {
   }
 }
 
-export function loadAtlasGeneratedAt(): string | undefined {
+export function loadAtlasGeneratedAt(flavor?: Flavor): string | undefined {
   try {
-    return loadAtlas().raw.generatedAt;
+    return loadAtlas(flavor).raw.generatedAt;
   } catch {
     return undefined;
   }

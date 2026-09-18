@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
 import { resolveFlavor } from "./config.js";
 import { loadAtlasGeneratedAt, loadFilesGeneratedAt } from "./gamedata/files.js";
@@ -51,10 +52,14 @@ function withStalenessNote(tool: ToolDef): ToolDef {
         flavor = undefined;
       }
 
+      // Each data set ages on its own clock: the listfile is shared by every
+      // client, but the UI source and the atlas are built per client.
       const generatedAt =
         tool.dataset === "uisource"
           ? loadUiSourceGeneratedAt(flavor)
-          : (loadFilesGeneratedAt() ?? loadAtlasGeneratedAt());
+          : tool.dataset === "atlas"
+            ? loadAtlasGeneratedAt(flavor)
+            : loadFilesGeneratedAt();
       const note = stalenessNote(generatedAt, tool.dataset!);
       if (!note) return result;
 
@@ -110,5 +115,62 @@ export function createServer(): McpServer {
     });
   }
 
+  narrowToolSchemas(server);
+
   return server;
+}
+
+/**
+ * Keywords some clients reject. The SDK adds `$schema` and
+ * `additionalProperties: false` to every tool's input schema. Gemini's function
+ * declarations do not know either, and clients built on it (Gemini CLI and
+ * other Gemini-backed tools) can fail the whole tool list over them: "Unknown
+ * name 'additionalProperties' ... Cannot find field". Nothing here needs them.
+ * Both are hints, and zod already drops unknown arguments when parsing.
+ */
+const STRICT_KEYWORDS = new Set(["$schema", "additionalProperties"]);
+
+/**
+ * Removes those keywords from a JSON schema. Only the boolean and string forms
+ * go: an `additionalProperties` that holds a schema describes a real map type
+ * and is kept, as is a property that happens to be named after the keyword.
+ */
+export function stripStrictKeywords(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(stripStrictKeywords);
+  if (schema && typeof schema === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(schema)) {
+      if (STRICT_KEYWORDS.has(key) && typeof value !== "object") continue;
+      out[key] = stripStrictKeywords(value);
+    }
+    return out;
+  }
+  return schema;
+}
+
+type ListHandler = (request: unknown, extra: unknown) => Promise<{ tools: { inputSchema?: unknown }[] }>;
+
+/**
+ * Wraps the SDK's own tools/list handler rather than replacing it, so the
+ * listing itself stays the SDK's. If a future SDK moves the handler, this does
+ * nothing and the tools still work; the protocol test in test/smoke.mjs is what
+ * notices the keywords coming back.
+ */
+function narrowToolSchemas(server: McpServer): void {
+  const handlers = (server.server as unknown as { _requestHandlers?: Map<string, ListHandler> })
+    ._requestHandlers;
+  const original = handlers?.get("tools/list");
+  if (!original) return;
+
+  server.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
+    const result = await original(request, extra);
+    return {
+      ...result,
+      tools: result.tools.map((tool) =>
+        tool.inputSchema === undefined
+          ? tool
+          : { ...tool, inputSchema: stripStrictKeywords(tool.inputSchema) },
+      ),
+    } as never;
+  });
 }

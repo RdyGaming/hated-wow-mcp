@@ -205,6 +205,35 @@ export function findInstallations(): Installation[] {
   return found;
 }
 
+/**
+ * Which UI source indexes a bare `sync ui-source` should build.
+ *
+ * The default flavor's index always, because every tool answers for it when a
+ * call names no client. Then one for each client found installed, so a machine
+ * with `_classic_beta_` gets WoW Forever without anyone remembering `-- forever`.
+ * Indexing every flavor unconditionally would hand each retail-only developer a
+ * second ~46MB checkout they will never query, which is why this follows the
+ * installs instead.
+ *
+ * Returns index keys (`mainline`, `classic`, `vanilla`, `forever`), retail
+ * first, without duplicates. Several Classic flavors share `_classic_`, so they
+ * collapse to one `classic` key.
+ */
+export function defaultSyncIndexes(): { keys: string[]; installed: string[] } {
+  let defaultKey: string = "mainline";
+  try {
+    defaultKey = resolveFlavor().apiIndex;
+  } catch {
+    // A bad WOW_DEFAULT_FLAVOR should not stop a sync; fall back to retail.
+  }
+
+  const installed = [...new Set(findInstallations().map((i) => i.flavor.apiIndex))];
+  const keys = [...new Set([defaultKey, ...installed])];
+  // Retail first when present, so the log and the index read in a stable order.
+  keys.sort((a, b) => (a === "mainline" ? -1 : b === "mainline" ? 1 : 0));
+  return { keys, installed };
+}
+
 /** Reads the installed build number out of `.build.info` in the install root. */
 function readBuild(root: string, flavorDir: string): string | undefined {
   try {
@@ -283,10 +312,19 @@ export const DATA_PATHS = {
   get files() {
     return join(cacheRoot(), "files-index.json");
   },
-  get atlas() {
-    return join(cacheRoot(), "atlas-index.json");
-  },
+  /**
+   * One atlas file per client, since each client has different atlases. Retail
+   * keeps the original name, so an index synced before this existed is still
+   * found rather than orphaned.
+   */
+  atlasFor: (indexKey: string) =>
+    join(cacheRoot(), indexKey === "mainline" ? "atlas-index.json" : `atlas-index-${indexKey}.json`),
 } as const;
+
+/** A flavor that uses the given index key: `classic` is shared by four of them. */
+export function flavorForIndexKey(indexKey: string): Flavor | undefined {
+  return Object.values(FLAVORS).find((f) => f.apiIndex === indexKey);
+}
 
 /**
  * `sync` is the sync's name — `ui-source`, `game-data`, `api`. The command we
@@ -316,6 +354,15 @@ export function syncCommand(sync: string, args = ""): string {
     : `npx -y hated-wow-mcp sync ${sync}${tail}`;
 }
 
+/**
+ * Appended wherever a tool tells someone to run a sync. The reader is often an
+ * AI assistant, and a chat-only client has no shell to run it in. Without this
+ * it either gives up or asks the user something vague. The server deliberately
+ * cannot sync for it: it makes no network calls of its own.
+ */
+export const RUN_IT_YOURSELF =
+  "If you cannot run commands, ask the user to run it in a terminal, then try again.";
+
 export function dataMissingMessage(what: string, sync: string): string {
   const command = syncCommand(sync);
 
@@ -324,6 +371,7 @@ export function dataMissingMessage(what: string, sync: string): string {
     "",
     `Run \`${command}\` to fetch and index it.`,
     "That sync downloads from public mirrors and needs outbound network access.",
+    RUN_IT_YOURSELF,
     "",
     `It will be written to ${cacheRoot()}`,
   ].join("\n");

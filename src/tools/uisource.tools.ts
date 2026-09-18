@@ -11,7 +11,7 @@ import {
   searchTemplates,
 } from "../uisource/search.js";
 import { loadIndex } from "../wowapi/index.js";
-import { cap, text, type ToolDef } from "./shared.js";
+import { READ_ONLY, cap, text, type ToolDef } from "./shared.js";
 
 const flavorArg = z.enum(FLAVOR_IDS).optional().describe("Game client. Defaults to retail.");
 
@@ -21,6 +21,7 @@ export const uiSourceTools: ToolDef[] = [
     dataset: "uisource",
     config: {
       title: "Search Blizzard's XML frame templates",
+      annotations: READ_ONLY,
       description:
         "Search the virtual XML templates that ship with the game — the frames an " +
         "addon can inherit by name to get Blizzard's own look and behaviour " +
@@ -66,6 +67,7 @@ export const uiSourceTools: ToolDef[] = [
     dataset: "uisource",
     config: {
       title: "Search Blizzard's Lua mixins",
+      annotations: READ_ONLY,
       description:
         "Search the mixin tables Blizzard's UI uses — reusable method sets attached " +
         "to frames via the XML mixin attribute or CreateFromMixins. Searching a " +
@@ -97,6 +99,7 @@ export const uiSourceTools: ToolDef[] = [
     dataset: "uisource",
     config: {
       title: "Look up console variables (CVars)",
+      annotations: READ_ONLY,
       description:
         "Find the game's console variables — the settings behind SetCVar/GetCVar. " +
         "Covers every CVar the client registers, and for the ones Blizzard's own " +
@@ -186,6 +189,7 @@ export const uiSourceTools: ToolDef[] = [
     dataset: "uisource",
     config: {
       title: "Search Blizzard's UI source code",
+      annotations: READ_ONLY,
       description:
         "Regex-search the full Lua and XML source of the 348 Blizzard addons that " +
         "ship with the client. This is the ground truth for how the game itself " +
@@ -248,6 +252,7 @@ export const uiSourceTools: ToolDef[] = [
     dataset: "uisource",
     config: {
       title: "Read a file from Blizzard's UI source",
+      annotations: READ_ONLY,
       description:
         "Read a Lua or XML file from Blizzard's shipped interface source, by the " +
         "path that wow_ui_grep or wow_ui_template_search reported. Use this to see " +
@@ -291,6 +296,7 @@ export const uiSourceTools: ToolDef[] = [
     dataset: "uisource",
     config: {
       title: "List Blizzard's shipped UI packages",
+      annotations: READ_ONLY,
       description:
         "List the Blizzard_* addon packages that ship with the client, optionally " +
         "filtered. Use this to find which package owns a piece of the UI before " +

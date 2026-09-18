@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 
-import { DATA_PATHS, dataMissingMessage, syncCommand, type Flavor } from "../config.js";
+import { DATA_PATHS, RUN_IT_YOURSELF, dataMissingMessage, syncCommand, type Flavor } from "../config.js";
 
 export interface UiFile {
   path: string;
@@ -136,7 +136,7 @@ export function loadUiSource(flavor: Flavor): LoadedUiSource {
     // this server exists to prevent, so say what is missing and how to get it.
     throw new Error(
       `The Blizzard UI source for ${flavor.label} has not been synced.\n\n` +
-        `Run \`${syncCommand("ui-source", key)}\` to fetch and index it.\n` +
+        `Run \`${syncCommand("ui-source", key)}\` to fetch and index it. ${RUN_IT_YOURSELF}\n` +
         `Synced so far: ${Object.keys(cache).join(", ") || "nothing"}.`,
     );
   }

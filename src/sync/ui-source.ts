@@ -19,6 +19,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 
+import { defaultSyncIndexes } from "../config.js";
 import { cacheRoot } from "../paths.js";
 
 // A ~48MB checkout plus its index — writable cache root, not the package.
@@ -443,7 +444,22 @@ async function buildIndex(flavor: string): Promise<UiSourceIndex> {
 
 async function main(): Promise<void> {
   const requested = process.argv.slice(2).filter((a) => !a.startsWith("-"));
-  const flavors = requested.length > 0 ? requested : ["mainline"];
+
+  // Naming flavors is an override. With none named, index the default flavor
+  // plus every client found installed, so an installed WoW Forever is picked up
+  // without a flag.
+  let flavors = requested;
+  if (requested.length === 0) {
+    const chosen = defaultSyncIndexes();
+    flavors = chosen.keys;
+    process.stderr.write(
+      `indexing: ${flavors.join(", ")}` +
+        (chosen.installed.length
+          ? ` (default flavor plus installed clients: ${chosen.installed.join(", ")}). ` +
+            "Name flavors after -- to override.\n"
+          : " (default flavor; no installed clients found).\n"),
+    );
+  }
 
   await mkdir(CHECKOUT_DIR, { recursive: true });
 

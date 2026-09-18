@@ -14,7 +14,8 @@ import {
   cacheRootReason,
   type CacheRootReason,
 } from "../paths.js";
-import { STALE_AFTER_DAYS, ageInDays, cap, text, type ToolDef } from "./shared.js";
+import { FLAVOR_IDS, flavorForIndexKey, resolveFlavor, syncCommand } from "../config.js";
+import { READ_ONLY, STALE_AFTER_DAYS, ageInDays, cap, text, type ToolDef } from "./shared.js";
 
 /** "  (12 days old)", flagged once it is old enough to be worth doubting. */
 function age(generatedAt: string): string {
@@ -38,6 +39,7 @@ export const gameDataTools: ToolDef[] = [
     dataset: "gamedata",
     config: {
       title: "Look up game files and FileDataIDs",
+      annotations: READ_ONLY,
       description:
         "Find game art and asset files by name, and get the FileDataID and texture " +
         "path an addon needs to reference them. Covers every interface texture and " +
@@ -104,6 +106,7 @@ export const gameDataTools: ToolDef[] = [
     dataset: "gamedata",
     config: {
       title: "Find an icon texture",
+      annotations: READ_ONLY,
       description:
         "Search the game's icon textures by name and return the path and FileDataID " +
         "for each. Icons follow a naming convention (spell_fire_*, inv_sword_*, " +
@@ -150,26 +153,34 @@ export const gameDataTools: ToolDef[] = [
 
   {
     name: "wow_atlas_search",
-    dataset: "gamedata",
+    dataset: "atlas",
     config: {
       title: "Find a texture atlas element",
+      annotations: READ_ONLY,
       description:
-        "Search the named texture atlas elements the UI uses with SetAtlas — the " +
+        "Search the named texture atlas elements the UI uses with SetAtlas, the " +
         "modern way to reference Blizzard art, since an atlas name carries its own " +
         "size and coordinates. Returns dimensions, the sheet FileDataID and the " +
-        "exact SetAtlas call. Prefer atlases over raw texture paths for UI art.",
+        "exact SetAtlas call. Prefer atlases over raw texture paths for UI art. " +
+        "Atlases differ between clients, so name the flavor you are writing for: " +
+        "an atlas that exists on retail may not exist on WoW Forever or Classic.",
       inputSchema: {
         query: z.string().describe("Atlas element name or fragment."),
+        flavor: z.enum(FLAVOR_IDS).optional().describe("Game client. Defaults to retail."),
         limit: z.number().int().min(1).max(200).optional(),
       },
     },
-    handler: async ({ query, limit }) => {
-      const hits = searchAtlas(query as string, (limit as number) ?? 30);
+    handler: async ({ query, flavor, limit }) => {
+      const resolved = resolveFlavor(flavor as string | undefined);
+      const hits = searchAtlas(query as string, (limit as number) ?? 30, resolved);
+      const { raw } = loadAtlas(resolved);
+      // Naming the client and build is what lets a reader tell whether this
+      // answer is for the client they are writing against.
+      const scope = `${resolved.label}, build ${raw.build}`;
 
       if (hits.length === 0) {
-        const { raw } = loadAtlas();
         return text(
-          `No atlas element matching "${query}" among ${raw.counts.atlases} elements.`,
+          `No atlas element matching "${query}" among ${raw.counts.atlases} elements (${scope}).`,
         );
       }
 
@@ -184,7 +195,7 @@ export const gameDataTools: ToolDef[] = [
 
       return text(
         cap(
-          `${hits.length} atlas element(s) matching "${query}":\n\n` +
+          `${hits.length} atlas element(s) matching "${query}" (${scope}):\n\n` +
             hits.map((h) => renderAtlasEntry(h, files)).join("\n\n"),
         ),
       );
@@ -195,6 +206,7 @@ export const gameDataTools: ToolDef[] = [
     name: "wow_data_status",
     config: {
       title: "Show game data availability",
+      annotations: READ_ONLY,
       description:
         "Report which game data sets are synced — the file/FileDataID index and the " +
         "texture atlas index — with counts and sync dates, and what to run for any " +
@@ -226,17 +238,39 @@ export const gameDataTools: ToolDef[] = [
         lines.push("  File index: NOT BUILT", `    ${(err as Error).message}`, "");
       }
 
-      try {
-        const atlas = loadAtlas();
+      // One atlas per client. Report the ones that are built, and only complain
+      // about the default client's if it is missing: three "NOT BUILT" lines for
+      // clients someone never asked about would bury the real one.
+      const missing: string[] = [];
+      let anyAtlas = false;
+      for (const key of ["mainline", "classic", "vanilla", "forever"]) {
+        const flavor = flavorForIndexKey(key)!;
+        try {
+          const atlas = loadAtlas(flavor);
+          anyAtlas = true;
+          lines.push(
+            `  Atlas index: ${flavor.label}`,
+            `    synced:   ${atlas.raw.generatedAt}${age(atlas.raw.generatedAt)}`,
+            `    build:    ${atlas.raw.build}`,
+            `    contents: ${atlas.raw.counts.atlases} elements across ${atlas.raw.counts.sheets} sheets`,
+            "",
+          );
+        } catch {
+          missing.push(key);
+        }
+      }
+      if (!anyAtlas) {
+        try {
+          loadAtlas();
+        } catch (err) {
+          lines.push("  Atlas index: NOT BUILT", `    ${(err as Error).message}`, "");
+        }
+      } else if (missing.length) {
         lines.push(
-          "  Atlas index",
-          `    synced:   ${atlas.raw.generatedAt}${age(atlas.raw.generatedAt)}`,
-          `    build:    ${atlas.raw.build}`,
-          `    contents: ${atlas.raw.counts.atlases} elements across ${atlas.raw.counts.sheets} sheets`,
+          `  Atlas not built for: ${missing.join(", ")}`,
+          `    Run \`${syncCommand("game-data", missing[0]!)}\` for one, or a bare sync for every installed client.`,
           "",
         );
-      } catch (err) {
-        lines.push("  Atlas index: NOT BUILT", `    ${(err as Error).message}`, "");
       }
 
       return text(lines.join("\n"));

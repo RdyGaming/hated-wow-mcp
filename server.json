@@ -1,0 +1,51 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.RdyGaming/hated-wow-mcp",
+  "title": "Hated WoW MCP",
+  "description": "MCP server for WoW addons: Lua API, Blizzard UI source, CVars, art lookup, linting, scaffolding.",
+  "repository": {
+    "url": "https://github.com/RdyGaming/hated-wow-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/RdyGaming/hated-wow-mcp#readme",
+  "version": "0.5.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "hated-wow-mcp",
+      "version": "0.5.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "WOW_DEFAULT_FLAVOR",
+          "description": "Client to answer for when a tool call does not name one.",
+          "isRequired": false,
+          "format": "string",
+          "default": "mainline",
+          "choices": ["mainline", "mists", "cata", "wrath", "tbc", "vanilla", "forever"]
+        },
+        {
+          "name": "WOW_INSTALL_PATH",
+          "description": "Your World of Warcraft folder. Auto-detected in the standard locations if unset.",
+          "isRequired": false,
+          "format": "filepath"
+        },
+        {
+          "name": "WOW_ADDON_PATH",
+          "description": "AddOns folder the addon tools read and write. Confines them to that directory.",
+          "isRequired": false,
+          "format": "filepath"
+        },
+        {
+          "name": "WOW_MCP_DATA_DIR",
+          "description": "Where synced UI source and game data are stored. Defaults to the OS cache directory.",
+          "isRequired": false,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}

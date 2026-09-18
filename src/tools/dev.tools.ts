@@ -14,7 +14,7 @@ import { analyzeLua, formatDiagnostics } from "../lua/analyze.js";
 import { scaffoldAddon } from "../scaffold/addon.js";
 import { formatTocValidation, validateToc } from "../toc/parse.js";
 import { formatXmlValidation, validateXml } from "../xml/validate.js";
-import { cap, errorText, text, type ToolDef } from "./shared.js";
+import { READ_ONLY, cap, errorText, text, type ToolDef } from "./shared.js";
 
 const flavorArg = z.enum(FLAVOR_IDS).optional().describe("Target client. Defaults to retail.");
 
@@ -42,6 +42,7 @@ export const devTools: ToolDef[] = [
     name: "wow_lua_lint",
     config: {
       title: "Lint addon Lua against a game client",
+      annotations: READ_ONLY,
       description:
         "Analyse addon Lua for problems specific to World of Warcraft: APIs that " +
         "were removed or moved into a namespace in the target client, unknown " +
@@ -94,6 +95,7 @@ export const devTools: ToolDef[] = [
     name: "wow_xml_validate",
     config: {
       title: "Validate interface XML",
+      annotations: READ_ONLY,
       description:
         "Validate WoW interface XML against Blizzard's own UI.xsd: unknown or " +
         "misspelled elements and attributes, invalid nesting, bad enum values, and " +
@@ -128,6 +130,7 @@ export const devTools: ToolDef[] = [
     name: "wow_toc_validate",
     config: {
       title: "Validate an addon .toc manifest",
+      annotations: READ_ONLY,
       description:
         "Validate a .toc manifest: interface version against the target client, " +
         "flavor suffix consistency, unrecognised directives the client silently " +
@@ -184,12 +187,24 @@ export const devTools: ToolDef[] = [
     name: "wow_addon_scaffold",
     config: {
       title: "Generate an addon skeleton",
+      // The one tool that can change files. It only writes when asked to, and
+      // refuses to touch an addon that already exists unless told to overwrite,
+      // so destructiveHint is true because `overwrite` exists, not because a
+      // plain call would harm anything. Clients should confirm this one.
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
       description:
         "Generate a complete, working addon skeleton: .toc manifests for the chosen " +
         "clients, an event-dispatch Core.lua with SavedVariables handling and a " +
         "slash command, and optionally an XML frame template with its Lua mixin and " +
         "a Settings-API options panel. Use this to start a new addon rather than " +
-        "writing boilerplate by hand.",
+        "writing boilerplate by hand. By default it only returns the files. With " +
+        "`write` it saves them into the addon folder, and it refuses if any of the " +
+        "files already exist unless `overwrite` is also set.",
       inputSchema: {
         name: z.string().describe("Addon name; also the folder name."),
         flavors: z
@@ -207,6 +222,14 @@ export const devTools: ToolDef[] = [
           .boolean()
           .optional()
           .describe("Write the files into the configured addon folder instead of just returning them."),
+        overwrite: z
+          .boolean()
+          .optional()
+          .describe(
+            "With `write`, replace files that already exist. Off by default: " +
+              "scaffolding a name that matches an installed addon would otherwise " +
+              "silently replace its real files.",
+          ),
       },
     },
     handler: async (args) => {
@@ -233,10 +256,30 @@ export const devTools: ToolDef[] = [
           );
         }
 
+        // Work out every destination and check all of them before writing any,
+        // so a refusal leaves nothing half-written.
+        const base = resolve(root);
+        const targets = files.map((file) => ({ file, target: resolve(join(base, file.path)) }));
+
+        const outside = targets.find((t) => t.target !== base && !t.target.startsWith(base + sep));
+        if (outside) {
+          return errorText(`Refusing to write outside the addon folder: ${outside.target}`);
+        }
+
+        const existing = targets.filter((t) => existsSync(t.target));
+        if (existing.length > 0 && !args.overwrite) {
+          return errorText(
+            `Not written: ${existing.length} of ${targets.length} file(s) already exist, ` +
+              "which usually means an addon with this name is installed:\n\n" +
+              existing.map((t) => `  ${t.target}`).join("\n") +
+              "\n\nPick a different name, or pass `overwrite: true` if replacing them " +
+              "is what you want. Nothing was changed.",
+          );
+        }
+
         const { mkdirSync, writeFileSync } = await import("node:fs");
         const written: string[] = [];
-        for (const file of files) {
-          const target = join(root, file.path);
+        for (const { file, target } of targets) {
           mkdirSync(resolve(target, ".."), { recursive: true });
           writeFileSync(target, file.content, "utf8");
           written.push(target);
@@ -263,6 +306,7 @@ export const devTools: ToolDef[] = [
     name: "wow_install_info",
     config: {
       title: "Show the local WoW installation",
+      annotations: READ_ONLY,
       description:
         "Report the World of Warcraft installations found on this machine — their " +
         "paths, flavors, build numbers, and the addons currently installed. Use " +

@@ -1,3 +1,4 @@
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodRawShape } from "zod";
 
 export interface ToolResult {
@@ -7,7 +8,7 @@ export interface ToolResult {
 }
 
 /** Which synced data set a tool's answers come from, if any. */
-export type Dataset = "uisource" | "gamedata";
+export type Dataset = "uisource" | "gamedata" | "atlas";
 
 export interface ToolDef {
   name: string;
@@ -15,6 +16,11 @@ export interface ToolDef {
     title: string;
     description: string;
     inputSchema: ZodRawShape;
+    /**
+     * Required, not optional, so a new tool cannot ship without saying whether
+     * it writes. Clients use these to decide which calls to prompt for.
+     */
+    annotations: ToolAnnotations;
   };
   handler: (args: Record<string, unknown>) => Promise<ToolResult>;
   /**
@@ -57,6 +63,13 @@ export function stalenessNote(generatedAt: string | undefined, dataset: Dataset)
     `wow_data_status shows the details.]`
   );
 }
+
+/**
+ * For tools that only read local data. Clients that prompt per tool call can
+ * skip the prompt for these, and openWorldHint false says they never reach
+ * out to anything beyond the machine.
+ */
+export const READ_ONLY: ToolAnnotations = { readOnlyHint: true, openWorldHint: false };
 
 export function text(body: string): ToolResult {
   return { content: [{ type: "text", text: body }] };

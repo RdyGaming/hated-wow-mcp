@@ -10,8 +10,8 @@ Lua API** for the client you are targeting, **Blizzard's own shipped UI source**
 so it can see how the game itself does something, and the **game's art and file
 data** so texture references are real rather than invented.
 
-20 tools. Works with Claude Desktop, Claude Code, Cursor, Cline, and anything
-else that speaks MCP — or
+20 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
+Codex and VS Code is below, and anything else that speaks MCP works too. Or
 [browse them in a local web UI](#browse-it-without-an-ai-client) with no AI at
 all.
 
@@ -71,10 +71,70 @@ merge this in rather than replacing the file:
 Then **fully quit Claude Desktop from the system tray** and reopen it — closing
 the window is not enough, and the config is only read at startup.
 
-### Cursor / Cline / Windsurf / other MCP clients
+### Other clients
 
-Same JSON block as above. Cursor reads `.cursor/mcp.json` in your project, or
-`~/.cursor/mcp.json` globally. See `mcp-config.example.json` in this repo.
+It is a standard stdio MCP server, so any MCP client can run it. What differs is
+the config format. The shapes below come from each client's own documentation.
+
+| Client | Where | Format |
+| --- | --- | --- |
+| Cursor | `.cursor/mcp.json` in a project, or `~/.cursor/mcp.json` | same `mcpServers` JSON as above |
+| Cline | MCP Servers panel, then Configure (CLI: `~/.cline/mcp.json`) | same `mcpServers` JSON |
+| Antigravity | `~/.gemini/config/mcp_config.json`, or Settings, Customizations, Open MCP Config | same `mcpServers` JSON. Its docs ask for absolute command paths |
+| Windsurf | its MCP config file | same `mcpServers` JSON |
+| VS Code | `.vscode/mcp.json`, or the `MCP: Open User Configuration` command | **`servers`**, not `mcpServers` |
+| Codex | `~/.codex/config.toml` | **TOML**, see below |
+
+**VS Code** uses a different top-level key from everyone else:
+
+```json
+{
+  "servers": {
+    "wow": { "command": "npx", "args": ["-y", "hated-wow-mcp"] }
+  }
+}
+```
+
+**Codex** reads TOML, not JSON. Either run `codex mcp add wow -- npx -y hated-wow-mcp`
+or add this to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.wow]
+command = "npx"
+args = ["-y", "hated-wow-mcp"]
+env = { WOW_DEFAULT_FLAVOR = "mainline" }
+startup_timeout_sec = 30
+```
+
+Raise `startup_timeout_sec` from Codex's default of 10. The first `npx` run has to
+download the package, which took about 9 seconds on a fast connection and would
+time out on a slower one. Claude Code has the same knob as `MCP_TIMEOUT`.
+
+**On Windows**, some clients start servers without a shell, and plain `npx` then
+fails to launch at all (`ENOENT`). Wrap it in `cmd`:
+
+```json
+{
+  "mcpServers": {
+    "wow": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "hated-wow-mcp"]
+    }
+  }
+}
+```
+
+That starts a live server in about 4 seconds. From a
+[clone](#running-from-a-clone), `"command": "node"` with the path to
+`dist/index.js` starts in half a second and needs no network.
+
+**Tool approvals.** 19 of the 20 tools only read local data and declare that
+(`readOnlyHint`), so a client that prompts per call can safely skip them. The
+exception is `wow_addon_scaffold`. It writes files only when you pass `write`,
+and it refuses to overwrite an addon that already exists unless you also pass
+`overwrite`. If you use auto-approve, leave that one out of the list.
+
+See `mcp-config.example.json` in this repo for a starting file.
 
 ### Then sync the game data
 
@@ -102,14 +162,30 @@ two seconds.
 
 ### Classic and WoW Forever
 
-`sync all` indexes **retail's** UI source. The other clients are one command
-each, and every sync adds to the same index rather than replacing it:
+A bare `sync all` (or `sync ui-source`) indexes your default client's UI source,
+retail unless you set `WOW_DEFAULT_FLAVOR`, **plus every WoW client it finds
+installed**. With `_classic_beta_` installed, WoW Forever is indexed with no
+flag. With only retail installed, nothing extra is downloaded. The log says what
+it chose.
+
+To pick clients yourself, name them. That overrides the detection, and every
+sync adds to the same index rather than replacing it:
 
 ```bash
 npx -y hated-wow-mcp sync ui-source -- forever   # WoW Forever (Camelot)
 npx -y hated-wow-mcp sync ui-source -- classic   # Mists / Cata / Wrath / TBC
 npx -y hated-wow-mcp sync ui-source -- vanilla   # Classic Era
+npx -y hated-wow-mcp sync ui-source -- mainline  # retail only, skip the rest
 ```
+
+Each client is its own ~46 MB checkout, so a machine with all four installed
+downloads about four times what a retail-only one does.
+
+The art data follows the same rule. `sync game-data` builds the texture atlas for
+your default client plus every installed one, and you can name clients the same
+way (`sync game-data -- forever`). An atlas is small, a few MB, so this costs far
+less than the UI source. The file index is shared by every client and is built
+once.
 
 Ask a tool about a client you have not synced and it says so and gives you the
 command. It does not fall back to retail's source, which would answer with
@@ -162,7 +238,7 @@ npm run sync-all
 npm test
 ```
 
-`npm test` should report **86 passed, 0 failed**. On Windows, `setup.cmd` does
+`npm test` should report **107 passed, 0 failed**. On Windows, `setup.cmd` does
 all five steps and prints the absolute path you need below.
 
 A clone keeps its synced data in `data/` beside the source rather than in the OS
@@ -253,7 +329,7 @@ All settings are optional — see `.env.example`.
 | CVars | 1,635 console variables with defaults, categories, scope and Blizzard's own descriptions; 451 also carry usage evidence from the UI source | [Ketho/BlizzardInterfaceResources](https://github.com/Ketho/BlizzardInterfaceResources) + UI source |
 | UI schema | Blizzard's `UI.xsd`, parsed for element/attribute validation | Same mirror |
 | File index | 172,175 interface files including 36,624 icons, mapped to FileDataIDs | [wowdev/wow-listfile](https://github.com/wowdev/wow-listfile) |
-| Atlas index | 17,465 named `SetAtlas` elements with sizes and coordinates | [wago.tools](https://wago.tools) DB2 exports |
+| Atlas index | Named `SetAtlas` elements with sizes and coordinates, one index per client at an exact build (17,467 retail, 20,454 WoW Forever) | [wago.tools](https://wago.tools) DB2 exports |
 
 All of it is synced from public mirrors by the scripts in `src/sync/`, so it
 tracks patches without anyone hand-maintaining a list.
@@ -408,7 +484,7 @@ src/
   paths.ts             bundled vs. synced data locations
 server.js              local web UI backend (npm run web)
 index.html             local web UI frontend
-test/smoke.mjs         86 end-to-end checks against real data
+test/smoke.mjs         107 end-to-end checks against real data
 data/                  bundled API indexes, plus synced ones in a clone
 ```
 
@@ -433,8 +509,11 @@ data/                  bundled API indexes, plus synced ones in a clone
   CVars Blizzard's UI touches, with no defaults, descriptions or protection
   flags. Once upstream has a branch for it, picking these up is a one-line
   change to the branch table in `src/sync/api.ts`.
-- **The atlas index is retail only.** `wow_atlas_search` answers from one
-  retail build; WoW Forever's atlases are not indexed separately yet.
+- **Atlases are built per client, so each has to be synced.** Retail and WoW
+  Forever share 16,788 atlas names, but 3,666 exist only on Forever and 720 only
+  on retail, so `wow_atlas_search` answers from the client you name and says
+  which build it used. A client whose atlas is not built says so and gives the
+  command; it does not borrow retail's.
 - **No BLP decoding.** Art tools return paths, FileDataIDs and atlas coordinates
   — not rendered images. Extracting actual textures needs a CASC tool such as
   wow.export against your own installation.
