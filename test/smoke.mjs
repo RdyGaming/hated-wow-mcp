@@ -290,6 +290,34 @@ await check("refuses to escape the checkout", "wow_ui_read_file",
     has(b, "Refusing to read outside");
   });
 
+await check("a bare filename suggests the full path", "wow_ui_read_file",
+  { path: "UIParent.lua" }, (b, r) => {
+    assert.ok(r.isError, "should be an error result");
+    has(b, "Did you mean");
+    has(b, "Interface/AddOns/Blizzard_UIParent/UIParent.lua");
+    assert.ok(!b.includes("wow_ui_find_file"), "must not name a tool that does not exist");
+  });
+
+await check("a wrong-case filename suggests the right one", "wow_ui_read_file",
+  { path: "uiparent.lua" }, (b, r) => {
+    assert.ok(r.isError, "should be an error result");
+    has(b, "Interface/AddOns/Blizzard_UIParent/UIParent.lua");
+  });
+
+await check("a partial path with backslashes still suggests", "wow_ui_read_file",
+  { path: "Blizzard_UIParent\\UIParent.lua" }, (b, r) => {
+    assert.ok(r.isError, "should be an error result");
+    has(b, "Interface/AddOns/Blizzard_UIParent/UIParent.lua");
+  });
+
+await check("a missing file points at tools that exist", "wow_ui_read_file",
+  { path: "Interface/AddOns/NoSuchAddon/NoSuchFile.lua" }, (b, r) => {
+    assert.ok(r.isError, "should be an error result");
+    assert.ok(!b.includes("Did you mean"), "nothing matches, so nothing to suggest");
+    has(b, "wow_ui_grep");
+    assert.ok(!b.includes("wow_ui_find_file"), "must not name a tool that does not exist");
+  });
+
 await check("lists Blizzard packages", "wow_ui_list_packages",
   { filter: "ActionBar" }, (b) => has(b, "Blizzard_ActionBar"));
 

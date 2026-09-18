@@ -238,7 +238,7 @@ npm run sync-all
 npm test
 ```
 
-`npm test` should report **107 passed, 0 failed**. On Windows, `setup.cmd` does
+`npm test` should report **111 passed, 0 failed**. On Windows, `setup.cmd` does
 all five steps and prints the absolute path you need below.
 
 A clone keeps its synced data in `data/` beside the source rather than in the OS
@@ -484,7 +484,7 @@ src/
   paths.ts             bundled vs. synced data locations
 server.js              local web UI backend (npm run web)
 index.html             local web UI frontend
-test/smoke.mjs         107 end-to-end checks against real data
+test/smoke.mjs         111 end-to-end checks against real data
 data/                  bundled API indexes, plus synced ones in a clone
 ```
 

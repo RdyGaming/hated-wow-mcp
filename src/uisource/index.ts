@@ -162,6 +162,36 @@ export function loadUiSourceGeneratedAt(flavor?: Flavor): string | undefined {
   }
 }
 
+const MAX_SUGGESTIONS = 5;
+
+/**
+ * Paths that a wrong or partial `relPath` most likely meant. A bare filename
+ * like `UIParent.lua` is the common mistake, since callers know the file's name
+ * but not which addon folder it lives in. Matches are ranked: same path apart
+ * from case, then a path that ends with what was given, then the same filename.
+ */
+function suggestUiFiles(source: LoadedUiSource, relPath: string): string[] {
+  const wanted = relPath
+    .replace(/\\/g, "/")
+    .replace(/^(\.\/)+/, "")
+    .replace(/^\/+/, "")
+    .toLowerCase();
+  if (!wanted) return [];
+  const base = wanted.slice(wanted.lastIndexOf("/") + 1);
+
+  const exact = source.byPath.get(wanted);
+  const ranked: string[] = exact ? [exact.path] : [];
+  const suffix: string[] = [];
+  const sameName: string[] = [];
+  for (const f of source.raw.files) {
+    const p = f.path.toLowerCase();
+    if (p === wanted) continue;
+    if (p.endsWith("/" + wanted)) suffix.push(f.path);
+    else if (p.slice(p.lastIndexOf("/") + 1) === base) sameName.push(f.path);
+  }
+  return [...ranked, ...suffix, ...sameName];
+}
+
 /**
  * Reads a file out of the synced checkout. Paths are resolved against the
  * checkout root and verified to stay inside it, so a crafted `..` path in a
@@ -178,8 +208,16 @@ export function readUiFile(
     throw new Error(`Refusing to read outside the UI source checkout: ${relPath}`);
   }
   if (!existsSync(target)) {
+    const matches = suggestUiFiles(source, relPath);
+    const shown = matches.slice(0, MAX_SUGGESTIONS);
+    const more = matches.length - shown.length;
     throw new Error(
-      `"${relPath}" is not in the synced UI source. Use wow_ui_find_file to locate it.`,
+      `"${relPath}" is not in the synced UI source.\n\n` +
+        (shown.length > 0
+          ? `Did you mean:\n${shown.map((p) => `  ${p}`).join("\n")}` +
+            (more > 0 ? `\n  ...and ${more} more` : "")
+          : "Paths start with Interface/AddOns/. Use wow_ui_grep or " +
+            "wow_ui_template_search to find the file's path."),
     );
   }
 
