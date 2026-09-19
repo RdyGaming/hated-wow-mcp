@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "wow": {
+      "command": "npx",
+      "args": ["-y", "hated-wow-mcp"],
+      "env": {
+        "WOW_DEFAULT_FLAVOR": "mainline"
+      }
+    }
+  }
+}
