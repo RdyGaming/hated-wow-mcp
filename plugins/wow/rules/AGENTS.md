@@ -9,7 +9,7 @@ When developing, maintaining, or modifying World of Warcraft addons, you must ad
   - Expected arguments, nilability, and parameter types.
   - Return signatures (many legacy multi-returns are now structured table objects).
   - Taint permission level (`AllowedWhenUntainted` vs `AllowedWhenTainted`).
-- When an API is missing or behavior differs between Retail and Classic, check `wow_api_diff` to determine availability and migration paths.
+- When an API is missing or behavior differs between client flavors (Retail, Classic, WoW Forever), check `wow_api_diff` to determine availability and migration paths.
 
 ## 2. Blizzard-First UI Discovery
 - Do not build complex widgets, buttons, or scroll views from scratch in Lua.
@@ -24,8 +24,9 @@ When developing, maintaining, or modifying World of Warcraft addons, you must ad
 
 ## 4. Texture and Asset Resolution
 - Never invent hardcoded file paths (e.g., `"Interface\\AddOns\\MyAddon\\texture.png"`).
-- For modern UI art, use `wow_atlas_search` to locate the atlas name and call `frame:SetAtlas(atlasName)`.
-- For spell/item icons, use `wow_icon_search` to retrieve the numeric `FileDataID` and call `frame:SetTexture(fileDataID)`.
+- **Prefer UI Atlases for UI Chrome:** For buttons, icons, frames, and dialog widgets, search `wow_atlas_search` first (pass `flavor` when writing for Classic or WoW Forever). When an official Blizzard atlas exists (e.g., `common-icon-plus`), prefer `frame:SetAtlas(atlasName)` over numeric FileDataIDs. Atlas names are semantic strings immune to digit transposition bugs.
+- **Reverse-Verify Numeric FileDataIDs:** When using `wow_icon_search` or numeric IDs, always run a reverse verification check via `wow_file_search` on the numeric ID to confirm it resolves back to the expected texture name before writing code.
+- **Mandatory Inline Comments:** Whenever placing a raw numeric `FileDataID` in Lua or `.toc` files, always include an inline comment with the canonical texture name (e.g., `b.Icon:SetTexture(135769) -- FileDataID: spell_chargepositive`).
 
 ## 5. Mandatory Validation Gate
 Before completing any task that adds, edits, or refactors addon files:

@@ -125,9 +125,9 @@ end
 Never guess texture paths or invent hardcoded file strings.
 
 1. **For Vector/Atlas UI Art:**
-   Call `wow_atlas_search` to find atlas elements and their dimensions:
+   Call `wow_atlas_search` to find atlas elements and their dimensions. Because texture atlases differ between game clients, pass the target `flavor` (e.g. `mainline`, `forever`, `vanilla`):
    ```json
-   { "query": "common-search-magnifyingglass" }
+   { "query": "common-search-magnifyingglass", "flavor": "mainline" }
    ```
    In Lua:
    ```lua
@@ -139,16 +139,16 @@ Never guess texture paths or invent hardcoded file strings.
    ```json
    { "query": "inv_misc_gem_bloodgem_01" }
    ```
-   In Lua, use the numeric FileDataID rather than raw paths:
+   Always reverse-verify the numeric ID using `wow_file_search` before using it, and include an inline comment naming the asset:
    ```lua
-   texture:SetTexture(133850)
+   texture:SetTexture(133850) -- FileDataID: inv_misc_gem_bloodgem_01
    ```
 
 ---
 
 ### Step 5: Cross-Flavor Compatibility
 
-When supporting multiple client flavors (Retail, Classic progression, Classic Era):
+When supporting multiple client flavors (Retail, WoW Forever, Classic progression, Classic Era):
 
 1. **Compare APIs Across Flavors:**
    Call `wow_api_diff` to check availability:

@@ -37,10 +37,16 @@ Use `wow_addon_scaffold` to generate a standards-compliant addon structure:
 ```json
 {
   "name": "MyAddon",
-  "flavor": "mainline",
-  "features": ["options", "events", "xml"]
+  "flavors": ["mainline", "vanilla"],
+  "withOptions": true,
+  "withFrame": true,
+  "write": true,
+  "overwrite": true
 }
 ```
+
+> [!NOTE]
+> By default, `wow_addon_scaffold` returns generated files without writing them to disk. Pass `"write": true` to save files into your AddOns directory. To guard against accidental overwrites, the tool refuses to write if any destination files exist unless `"overwrite": true` is explicitly provided.
 
 This generates a structured addon layout:
 ```text
@@ -62,13 +68,14 @@ World of Warcraft supports flavor-specific `.toc` suffixes to allow one addon co
 
 | Flavor | TOC File Suffix | Example Interface Version |
 | :--- | :--- | :--- |
-| **Retail (The War Within)** | `_Mainline.toc` | `110100` |
-| **Classic Progression (Cata/Mists)** | `_Cata.toc` / `_Mists.toc` | `40402` |
-| **Classic Era (Vanilla)** | `_Vanilla.toc` | `11506` |
+| **Retail (Midnight / TWW)** | `_Mainline.toc` | `120100` |
+| **WoW Forever (Camelot)** | *(uses main TOC with inline gate)* | `16001` |
+| **Classic Progression (Mists/Cata)** | `_Mists.toc` / `_Cata.toc` | `50504` / `40402` |
+| **Classic Era (Vanilla)** | `_Vanilla.toc` | `11509` |
 
 #### Recommended TOC Header Structure:
 ```toc
-## Interface: 110100
+## Interface: 120100
 ## Title: MyAddon
 ## Notes: A clean, reliable World of Warcraft addon.
 ## Author: YourName
@@ -87,7 +94,7 @@ Options.lua
 #### Validate Manifest with `wow_toc_validate`:
 Call `wow_toc_validate` with the manifest content to verify interface version, directives, and file lists:
 ```json
-{ "content": "## Interface: 110100\n## Title: MyAddon\nCore.lua\n" }
+{ "content": "## Interface: 120100\n## Title: MyAddon\nCore.lua\n" }
 ```
 
 ---
