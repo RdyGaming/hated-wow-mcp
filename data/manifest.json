@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-10-12T14:29:53.838Z",
+  "generatedAt": "2026-10-19T12:12:41.466Z",
   "flavors": {
     "mainline": {
-      "functions": 6338,
-      "events": 1783,
-      "tables": 1676,
+      "functions": 6440,
+      "events": 1785,
+      "tables": 1697,
       "globals": 6832,
       "cvars": 1652
     },
@@ -23,9 +23,9 @@
       "cvars": 1546
     },
     "forever": {
-      "functions": 6604,
-      "events": 1810,
-      "tables": 1753,
+      "functions": 6617,
+      "events": 1814,
+      "tables": 1759,
       "globals": 0,
       "cvars": 0
     }
