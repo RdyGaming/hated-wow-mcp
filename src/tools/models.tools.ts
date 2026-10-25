@@ -216,4 +216,92 @@ export const modelTools: ToolDef[] = [
       }
     },
   },
+  {
+    name: "wow_map_search",
+    config: {
+      title: "Search game maps",
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      description:
+        "Find maps (continents, instances, battlegrounds) by name, directory or id in the " +
+        "local game files. Also converts a world position to the terrain tile that holds it. " +
+        "Opens the game storage, so the first call takes about 40 seconds.",
+      inputSchema: {
+        query: z.string().describe("Map name fragment, directory (e.g. 'Kalimdor') or map id."),
+        x: z.number().optional().describe("World x (north) to find the tile for."),
+        y: z.number().optional().describe("World y (west) to find the tile for."),
+        flavor: z.string().optional().describe(FLAVOR_HELP),
+      },
+    },
+    handler: async ({ query, x, y, flavor }) => {
+      const problem = setupProblem();
+      if (problem) return errorText(problem);
+      try {
+        const driver = await openDriver(flavor as string | undefined);
+        const hits = await driver.searchMaps(query as string);
+        if (hits.length === 0) return text(`No maps match "${query as string}".`);
+        const lines = hits.map((h) => `${h.id}  ${h.directory}  (${h.name})`);
+        if (x !== undefined && y !== undefined) {
+          const t = driver.tileForPosition(x as number, y as number);
+          lines.push("", `Tile for (${x as number}, ${y as number}): ${t.a},${t.b}`);
+        }
+        return text(cap(lines.join("\n")));
+      } catch (err) {
+        return errorText(`Search failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+  },
+  {
+    name: "wow_map_export",
+    config: {
+      title: "Export map terrain",
+      annotations: WRITES_FILES,
+      description:
+        "Export terrain tiles of a map as OBJ with a texture, headless. Give a map id from " +
+        "wow_map_search plus tiles, or a world position. Texture modes: 'tex0' blends the " +
+        "tile's layers into one PNG (default), 'alpha' writes the layer textures and blend " +
+        "masks, 'none' is geometry only. Optionally places the tile's buildings and props. " +
+        "Written to <outputDir>/maps/<directory>/. Baked high-resolution textures are not " +
+        "supported (they need a GPU).",
+      inputSchema: {
+        mapId: z.number().int().describe("Map id from wow_map_search."),
+        tiles: z
+          .array(z.tuple([z.number().int(), z.number().int()]))
+          .optional()
+          .describe("Tile pairs [a, b] from the file name map_a_b.adt."),
+        x: z.number().optional().describe("World x (north); with y, picks the tile."),
+        y: z.number().optional().describe("World y (west)."),
+        outputDir: z.string().describe("Folder to write into (created if missing)."),
+        texture: z.enum(["tex0", "alpha", "none"]).optional(),
+        objects: z.boolean().optional().describe("Also export the tile's WMO and M2 placements. Slow."),
+        flavor: z.string().optional().describe(FLAVOR_HELP),
+      },
+    },
+    handler: async ({ mapId, tiles, x, y, outputDir, texture, objects, flavor }) => {
+      const problem = setupProblem();
+      if (problem) return errorText(problem);
+      try {
+        const driver = await openDriver(flavor as string | undefined);
+        const map = (await driver.searchMaps(String(mapId as number))).find((m) => m.id === mapId);
+        if (!map) return errorText(`No map with id ${mapId as number}. Try wow_map_search.`);
+        const list = [...((tiles as [number, number][] | undefined) ?? [])];
+        if (x !== undefined && y !== undefined) {
+          const t = driver.tileForPosition(x as number, y as number);
+          list.push([t.a, t.b]);
+        }
+        if (list.length === 0) return errorText("Pass tiles, or x and y.");
+        const quality = { tex0: -2, alpha: -1, none: 0 }[(texture as string | undefined) ?? "tex0"]!;
+        const r = await driver.exportMap({
+          mapId: map.id,
+          directory: map.directory,
+          tiles: list,
+          outDir: resolve(outputDir as string),
+          quality,
+          ...(objects ? { objects: true } : {}),
+        });
+        return text(`Exported ${list.length} tile(s) of ${map.directory}\nFolder: ${r.dir}\n${r.files.join("\n")}`);
+      } catch (err) {
+        return errorText(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+  },
 ];

@@ -13,6 +13,8 @@ import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
 const require = createRequire(import.meta.url);
+// constants.js reads this when first required, so set it before any lib import.
+process.env.WOWEXPORT_DATA ??= fileURLToPath(new URL("../data/wowexport", import.meta.url));
 const lib = fileURLToPath(new URL("../dist/wowexport/lib/", import.meta.url));
 const BufferWrapper = require(join(lib, "buffer.js"));
 const { BLTEReader } = require(join(lib, "casc", "blte-reader.js"));
@@ -130,6 +132,22 @@ if (findInstallations().length === 0 || setupProblem() !== null) {
       for (const img of json.images) {
         assert.ok(existsSync(join(out, "creature", "deathwing", img.uri)), `missing ${img.uri}`);
       }
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  await verify("real export: a Kalimdor terrain tile becomes OBJ with a texture", async () => {
+    const out = mkdtempSync(join(tmpdir(), "wowexport-map-"));
+    try {
+      const tool = ALL_TOOLS.find((t) => t.name === "wow_map_export");
+      const res = await tool.handler({ mapId: 1, x: -1280, y: 120, outputDir: out });
+      assert.ok(!res.isError, res.content[0].text);
+      const dir = join(out, "maps", "Kalimdor");
+      assert.ok(existsSync(join(dir, "adt_31_34.obj")), "obj not written");
+      assert.ok(existsSync(join(dir, "tex_31_34.png")), "texture not written");
+      const bad = await tool.handler({ mapId: 1, tiles: [[99, 0]], outputDir: out });
+      assert.ok(bad.isError, "out-of-range tile accepted");
     } finally {
       rmSync(out, { recursive: true, force: true });
     }

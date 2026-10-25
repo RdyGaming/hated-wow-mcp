@@ -11,6 +11,8 @@ const ExportHelper = require('./casc/export-helper');
 const CASCLocal = require('./casc/casc-source-local');
 const M2Exporter = require('./3D/exporters/M2Exporter');
 const WMOExporter = require('./3D/exporters/WMOExporter');
+const ADTExporter = require('./3D/exporters/ADTExporter');
+const db2 = require('./casc/db2');
 
 let cascKey = null;
 let casc = null;
@@ -329,4 +331,78 @@ const exportTexture = async (spec, outDir) => {
 	return out;
 };
 
-module.exports = { open, exportModel, exportTexture, searchCreatures, exportCreature, listfile, getCasc: () => casc };
+const TILE = constants.GAME.TILE_SIZE;
+const MAP_DIM = constants.GAME.MAP_SIZE;
+
+/** Find maps by name or directory (or id). */
+const searchMaps = async (query, limit = 40) => {
+	if (casc === null)
+		throw new Error('CASC not open');
+
+	const q = String(query).toLowerCase();
+	const hits = [];
+	for (const [id, row] of await db2.Map.getAllRows()) {
+		const dir = row.Directory ?? '';
+		const name = row.MapName_lang ?? '';
+		if (String(id) === q || dir.toLowerCase().includes(q) || name.toLowerCase().includes(q))
+			hits.push({ id, directory: dir, name });
+		if (hits.length >= limit)
+			break;
+	}
+	return hits;
+};
+
+/**
+ * World position (WoW x = north, y = west) to the ADT file-name pair "a_b".
+ * Tile a runs with y, tile b with x, matching the upstream tileID.
+ */
+const tileForPosition = (x, y) => {
+	const a = Math.floor(MAP_DIM / 2 - y / TILE);
+	const b = Math.floor(MAP_DIM / 2 - x / TILE);
+	return { a, b };
+};
+
+/**
+ * Export terrain tiles of a map. Tiles are [a, b] pairs from the ADT file name
+ * (map_a_b.adt). quality: 0 geometry only, -1 alpha maps, -2 tex0 atlas.
+ */
+const exportMap = async (opts) => {
+	if (casc === null)
+		throw new Error('CASC not open');
+
+	const cfg = core.view.config;
+	cfg.exportDirectory = path.resolve(opts.outDir);
+	cfg.exportMapFormat = 'OBJ';
+	cfg.mapsIncludeHoles = true;
+	cfg.mapsIncludeWMO = !!opts.objects;
+	cfg.mapsIncludeWMOSets = !!opts.objects;
+	cfg.mapsIncludeM2 = !!opts.objects;
+	cfg.mapsIncludeGameObjects = false;
+	cfg.mapsIncludeLiquid = false;
+	cfg.mapsIncludeFoliage = false;
+	cfg.splitAlphaMaps = false;
+	cfg.splitLargeTerrainBakes = false;
+
+	const quality = opts.quality ?? -2;
+	if (quality > 0)
+		throw new Error('Baked terrain textures need WebGL. Use quality 0, -1 or -2.');
+
+	const dir = ExportHelper.getExportPath('maps/' + ExportHelper.sanitizeFilename(opts.directory) + '/x');
+	const outDir = path.dirname(dir);
+	const helper = makeHelper();
+	const files = [];
+	try {
+		for (const [a, b] of opts.tiles) {
+			if (!(a >= 0 && a < MAP_DIM && b >= 0 && b < MAP_DIM))
+				throw new Error('Tile ' + a + '_' + b + ' is out of range 0-' + (MAP_DIM - 1));
+			const exporter = new ADTExporter(opts.mapId, opts.directory, a * MAP_DIM + b);
+			const r = await exporter.export(outDir, quality, undefined, helper);
+			files.push(r?.path ?? '');
+		}
+	} finally {
+		ADTExporter.clearCache();
+	}
+	return { dir: outDir, files };
+};
+
+module.exports = { open, exportModel, exportTexture, searchCreatures, exportCreature, searchMaps, tileForPosition, exportMap, listfile, getCasc: () => casc };

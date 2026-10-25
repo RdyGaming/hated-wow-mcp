@@ -994,7 +994,7 @@ await verify("every tool declares annotations and only the scaffold can write", 
     const { tools } = (await request("tools/list", {})).result;
     for (const t of tools) {
       assert.ok(t.annotations, `${t.name} declares no annotations`);
-      if (["wow_addon_scaffold", "wow_model_export", "wow_creature_export", "wow_texture_export"].includes(t.name)) {
+      if (["wow_addon_scaffold", "wow_model_export", "wow_creature_export", "wow_texture_export", "wow_map_export"].includes(t.name)) {
         assert.equal(t.annotations.readOnlyHint, false, `${t.name} writes files`);
         assert.equal(t.annotations.destructiveHint, true, "and can overwrite them");
       } else {

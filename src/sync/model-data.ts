@@ -48,6 +48,7 @@ const DBD_TABLES = [
   "ChrModelTextureLayer",
   "ChrRaceXChrModel",
   "ChrRaces",
+  "Map",
 ] as const;
 
 async function fetchText(url: string): Promise<string> {

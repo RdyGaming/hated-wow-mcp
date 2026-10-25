@@ -13,7 +13,7 @@ data** so texture references are real rather than invented. It can also read
 your local install and **export models headless**: creatures and NPCs with their
 skins, props, and buildings, as glTF or OBJ with PNG textures, ready for Blender.
 
-25 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
+27 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
 Codex and VS Code is below, and anything else that speaks MCP works too. Or
 [browse them in a local web UI](#browse-it-without-an-ai-client) with no AI at
 all.
@@ -131,9 +131,9 @@ That starts a live server in about 4 seconds. From a
 [clone](#running-from-a-clone), `"command": "node"` with the path to
 `dist/index.js` starts in half a second and needs no network.
 
-**Tool approvals.** 21 of the 25 tools only read local data and declare that
+**Tool approvals.** 23 of the 27 tools only read local data and declare that
 (`readOnlyHint`), so a client that prompts per call can safely skip them. The
-exceptions are `wow_model_export`, `wow_creature_export` and `wow_texture_export`, which write into the
+exceptions are `wow_model_export`, `wow_creature_export`, `wow_texture_export` and `wow_map_export`, which write into the
 folder you name, and `wow_addon_scaffold`. The scaffold writes files only when you pass `write`,
 and it refuses to overwrite an addon that already exists unless you also pass
 `overwrite`. If you use auto-approve, leave that one out of the list.
@@ -208,7 +208,7 @@ You should get a full 18-value signature. Or run the server directly:
 npx hated-wow-mcp --list
 ```
 
-That should print all 25 tools.
+That should print all 27 tools.
 
 ### Where the data lives
 
@@ -391,6 +391,8 @@ tracks patches without anyone hand-maintaining a list.
 | `wow_creature_search` | Find creatures and NPCs by name, creature id or display id |
 | `wow_creature_export` | Export a creature or NPC to glTF with animations and its skin. Humanoid NPCs get the right race model, hair and beard geosets, and the baked NPC skin |
 | `wow_texture_export` | Decode a BLP texture to PNG |
+| `wow_map_search` | Find maps by name, directory or id, and turn a world position into its terrain tile |
+| `wow_map_export` | Export terrain tiles (ADT) to OBJ with a blended texture, alpha masks, or geometry only, optionally with the tile's buildings and props |
 
 The exporter is a headless port of [wow.export](https://github.com/Kruithne/wow.export)
 (MIT, see [THIRD_PARTY.md](THIRD_PARTY.md)). It opens the CASC storage under your

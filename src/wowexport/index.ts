@@ -41,6 +41,16 @@ interface Driver {
     splitGroups?: boolean;
   }): Promise<ExportResult>;
   exportTexture(spec: string | number, outDir: string): Promise<string>;
+  searchMaps(query: string, limit?: number): Promise<{ id: number; directory: string; name: string }[]>;
+  tileForPosition(x: number, y: number): { a: number; b: number };
+  exportMap(opts: {
+    mapId: number;
+    directory: string;
+    tiles: [number, number][];
+    outDir: string;
+    quality?: number;
+    objects?: boolean;
+  }): Promise<{ dir: string; files: string[] }>;
   searchCreatures(opts: { query: string; limit?: number }): Promise<CreatureHit[]>;
   exportCreature(opts: {
     creatureId?: number;
