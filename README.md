@@ -3,14 +3,17 @@
 [![npm](https://img.shields.io/npm/v/hated-wow-mcp)](https://www.npmjs.com/package/hated-wow-mcp)
 [![license](https://img.shields.io/npm/l/hated-wow-mcp)](LICENSE)
 
-**An MCP server for writing World of Warcraft addons.** Free and open source.
+**An MCP server for writing World of Warcraft addons, and for pulling models out
+of the game.** Free and open source.
 
-It gives your AI assistant three things it otherwise guesses at: the **in-game
-Lua API** for the client you are targeting, **Blizzard's own shipped UI source**
-so it can see how the game itself does something, and the **game's art and file
-data** so texture references are real rather than invented.
+It gives your AI assistant things it otherwise guesses at: the **in-game Lua
+API** for the client you are targeting, **Blizzard's own shipped UI source** so
+it can see how the game itself does something, and the **game's art and file
+data** so texture references are real rather than invented. It can also read
+your local install and **export models headless**: creatures and NPCs with their
+skins, props, and buildings, as glTF or OBJ with PNG textures, ready for Blender.
 
-23 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
+25 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
 Codex and VS Code is below, and anything else that speaks MCP works too. Or
 [browse them in a local web UI](#browse-it-without-an-ai-client) with no AI at
 all.
@@ -128,9 +131,9 @@ That starts a live server in about 4 seconds. From a
 [clone](#running-from-a-clone), `"command": "node"` with the path to
 `dist/index.js` starts in half a second and needs no network.
 
-**Tool approvals.** 20 of the 23 tools only read local data and declare that
+**Tool approvals.** 21 of the 25 tools only read local data and declare that
 (`readOnlyHint`), so a client that prompts per call can safely skip them. The
-exceptions are `wow_model_export` and `wow_texture_export`, which write into the
+exceptions are `wow_model_export`, `wow_creature_export` and `wow_texture_export`, which write into the
 folder you name, and `wow_addon_scaffold`. The scaffold writes files only when you pass `write`,
 and it refuses to overwrite an addon that already exists unless you also pass
 `overwrite`. If you use auto-approve, leave that one out of the list.
@@ -205,7 +208,7 @@ You should get a full 18-value signature. Or run the server directly:
 npx hated-wow-mcp --list
 ```
 
-That should print all 23 tools.
+That should print all 25 tools.
 
 ### Where the data lives
 
@@ -385,6 +388,8 @@ tracks patches without anyone hand-maintaining a list.
 | --- | --- |
 | `wow_model_search` | Find M2 (creature, prop) and WMO (building) models by path words or FileDataID |
 | `wow_model_export` | Export a model to glTF with animations (M2) or OBJ+MTL (WMO), with PNG textures beside it |
+| `wow_creature_search` | Find creatures and NPCs by name, creature id or display id |
+| `wow_creature_export` | Export a creature or NPC to glTF with animations and its skin. Humanoid NPCs get the right race model, hair and beard geosets, and the baked NPC skin |
 | `wow_texture_export` | Decode a BLP texture to PNG |
 
 The exporter is a headless port of [wow.export](https://github.com/Kruithne/wow.export)
@@ -400,8 +405,8 @@ npx -y hated-wow-mcp sync model-data
 
 That fetches table layouts from WoWDBDefs and decryption keys from TACTKeys; no
 game files are downloaded. The first export in a session takes about 30 seconds
-while the storage index loads. Creature skins that come from the creature display
-tables are not applied yet, so some creature models export untextured.
+while the storage index loads. Not covered yet: gear worn by humanoid NPCs, hair
+and face textures on humanoids, player characters, items, and terrain maps.
 
 ---
 

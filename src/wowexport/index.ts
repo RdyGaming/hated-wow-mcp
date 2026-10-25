@@ -21,6 +21,16 @@ export interface ExportResult {
   files: { type: string; fileDataID: number; file: string }[];
 }
 
+export interface CreatureHit {
+  id: number;
+  name: string;
+  displayID: number;
+  fileDataID?: number;
+  model?: string;
+  /** Built from a player race model (most named NPCs). */
+  humanoid: boolean;
+}
+
 interface Driver {
   open(opts: { gameRoot: string; listfileCsv: string; product?: string }): Promise<unknown>;
   exportModel(opts: {
@@ -31,6 +41,14 @@ interface Driver {
     splitGroups?: boolean;
   }): Promise<ExportResult>;
   exportTexture(spec: string | number, outDir: string): Promise<string>;
+  searchCreatures(opts: { query: string; limit?: number }): Promise<CreatureHit[]>;
+  exportCreature(opts: {
+    creatureId?: number;
+    displayId?: number;
+    outDir: string;
+    format?: string;
+    animations?: boolean;
+  }): Promise<ExportResult & { displayID: number; fileDataID: number; textures: number[] }>;
 }
 
 const PRODUCT_BY_API: Record<string, string> = {

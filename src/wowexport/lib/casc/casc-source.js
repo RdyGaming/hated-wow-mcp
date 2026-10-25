@@ -178,7 +178,7 @@ class CASC {
 	 * @param {boolean} [suppressLog=false]
 	 */
 	async getVirtualFileByID(fileDataID, suppressLog = false) {
-		const file = await this.getFile(fileDataID, false, suppressLog);
+		const file = await this.getFile(fileDataID, true, suppressLog);
 		file.processAllBlocks();
 		return file;
 	}

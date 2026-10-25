@@ -104,6 +104,93 @@ export const modelTools: ToolDef[] = [
     },
   },
   {
+    name: "wow_creature_search",
+    config: {
+      title: "Search creatures and NPCs",
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      description:
+        "Find creatures and NPCs by name (or creature id, or display id) in the local game " +
+        "files, with the model each one uses. Opens the game storage, so the first call " +
+        "takes about 40 seconds. Use the id with wow_creature_export.",
+      inputSchema: {
+        query: z.string().describe("Creature name fragment, creature id or display id."),
+        limit: z.number().int().min(1).max(100).optional(),
+        flavor: z.string().optional().describe(FLAVOR_HELP),
+      },
+    },
+    handler: async ({ query, limit, flavor }) => {
+      const problem = setupProblem();
+      if (problem) return errorText(problem);
+      try {
+        const driver = await openDriver(flavor as string | undefined);
+        const hits = await driver.searchCreatures({
+          query: query as string,
+          ...(limit ? { limit: limit as number } : {}),
+        });
+        if (hits.length === 0) return text(`No creatures match "${query as string}".`);
+        return text(
+          cap(
+            hits
+              .map(
+                (h) =>
+                  `${h.id}  ${h.name}  (display ${h.displayID}, ${h.model ?? "no model"}${h.humanoid ? ", humanoid" : ""})`,
+              )
+              .join("\n"),
+          ),
+        );
+      } catch (err) {
+        return errorText(`Search failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+  },
+  {
+    name: "wow_creature_export",
+    config: {
+      title: "Export a creature or NPC with its skin",
+      annotations: WRITES_FILES,
+      description:
+        "Export a creature or NPC as glTF with animations and its skin textures, headless. " +
+        "Beasts and monsters get their display skin and geosets. Humanoid NPCs (built from a " +
+        "player race model) get the right race and sex model, the NPC's hair, beard and " +
+        "similar geosets, and the baked NPC skin; worn gear is not applied yet. Written to " +
+        "<outputDir>/creatures/.",
+      inputSchema: {
+        creatureId: z.number().int().optional().describe("Creature id from wow_creature_search."),
+        displayId: z.number().int().optional().describe("Display id, when there is no creature id."),
+        outputDir: z.string().describe("Folder to write into (created if missing)."),
+        format: z.enum(["gltf", "glb", "obj"]).optional(),
+        animations: z.boolean().optional().describe("Include animations. Default true."),
+        flavor: z.string().optional().describe(FLAVOR_HELP),
+      },
+    },
+    handler: async ({ creatureId, displayId, outputDir, format, animations, flavor }) => {
+      const problem = setupProblem();
+      if (problem) return errorText(problem);
+      if (creatureId === undefined && displayId === undefined) {
+        return errorText("Pass creatureId or displayId. Find one with wow_creature_search.");
+      }
+      try {
+        const driver = await openDriver(flavor as string | undefined);
+        const r = await driver.exportCreature({
+          ...(creatureId !== undefined ? { creatureId: creatureId as number } : {}),
+          ...(displayId !== undefined ? { displayId: displayId as number } : {}),
+          outDir: resolve(outputDir as string),
+          ...(format ? { format: format as string } : {}),
+          ...(animations !== undefined ? { animations: animations as boolean } : {}),
+        });
+        return text(
+          [
+            `Exported ${r.name} (display ${r.displayID}, model FileDataID ${r.fileDataID})`,
+            `Model file: ${r.path}`,
+            "Textures and animation data sit beside the model file.",
+          ].join("\n"),
+        );
+      } catch (err) {
+        return errorText(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+  },
+  {
     name: "wow_texture_export",
     config: {
       title: "Export a game texture as PNG",

@@ -32,7 +32,22 @@ const DBD_TABLES = [
   "Creature",
   "CreatureDisplayInfo",
   "CreatureDisplayInfoExtra",
+  "CreatureDisplayInfoGeosetData",
+  "CreatureDisplayInfoOption",
   "CreatureModelData",
+  "CharComponentTextureSections",
+  "ChrCustomizationChoice",
+  "ChrCustomizationCondModel",
+  "ChrCustomizationElement",
+  "ChrCustomizationGeoset",
+  "ChrCustomizationMaterial",
+  "ChrCustomizationOption",
+  "ChrCustomizationSkinnedModel",
+  "ChrModel",
+  "ChrModelMaterial",
+  "ChrModelTextureLayer",
+  "ChrRaceXChrModel",
+  "ChrRaces",
 ] as const;
 
 async function fetchText(url: string): Promise<string> {
