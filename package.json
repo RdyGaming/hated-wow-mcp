@@ -1,7 +1,7 @@
 {
   "name": "hated-wow-mcp",
   "version": "0.6.1",
-  "description": "MCP server for World of Warcraft addon development: 20 tools giving Claude, Cursor and any MCP client the in-game Lua API, Blizzard's shipped UI source, CVars, FileDataIDs and texture atlases, plus Lua linting, TOC/XML validation and addon scaffolding. Retail, Classic, Classic Era and WoW Forever.",
+  "description": "MCP server for World of Warcraft addon development: 23 tools giving Claude, Cursor and any MCP client the in-game Lua API, Blizzard's shipped UI source, CVars, FileDataIDs and texture atlases, plus Lua linting, TOC/XML validation, addon scaffolding and headless model export to glTF/OBJ. Retail, Classic, Classic Era and WoW Forever.",
   "author": "Hated Gaming",
   "mcpName": "io.github.RdyGaming/hated-wow-mcp",
   "type": "module",
@@ -24,13 +24,15 @@
     "data/api-*.json",
     "data/ui.xsd",
     "data/manifest.json",
-    "README.md"
+    "README.md",
+    "THIRD_PARTY.md"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-lib.mjs",
+    "sync-model-data": "tsx src/sync/model-data.ts",
     "watch": "tsc -p tsconfig.json --watch",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
@@ -40,7 +42,7 @@
     "sync-game-data": "tsx src/sync/game-data.ts",
     "sync-all": "npm run sync-api && npm run sync-ui-source && npm run sync-game-data",
     "web": "node server.js",
-    "test": "node test/smoke.mjs",
+    "test": "node test/smoke.mjs && node test/wowexport.mjs",
     "prepublishOnly": "npm run build && npm test",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
   },

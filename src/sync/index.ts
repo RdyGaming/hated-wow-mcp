@@ -25,16 +25,18 @@ const SYNCS = {
   api: "api.js",
   "ui-source": "ui-source.js",
   "game-data": "game-data.js",
+  "model-data": "model-data.js",
 } as const;
 
 type SyncName = keyof typeof SYNCS;
 
 const USAGE = [
-  "Usage: npx -y hated-wow-mcp sync <api|ui-source|game-data|all> [-- <args>]",
+  "Usage: npx -y hated-wow-mcp sync <api|ui-source|game-data|model-data|all> [-- <args>]",
   "",
   "  api         Blizzard's generated API docs (ships bundled; git checkout only)",
   "  ui-source   Blizzard's shipped UI source and its symbol index (~50MB)",
   "  game-data   FileDataID listfile and texture atlas indexes (~17MB)",
+  "  model-data  DBD table layouts and TACT keys for the model exporter (small)",
   "  all         every sync that applies to this install, in order",
   "",
   "Extra arguments after -- go to the sync, e.g.:",

@@ -994,8 +994,8 @@ await verify("every tool declares annotations and only the scaffold can write", 
     const { tools } = (await request("tools/list", {})).result;
     for (const t of tools) {
       assert.ok(t.annotations, `${t.name} declares no annotations`);
-      if (t.name === "wow_addon_scaffold") {
-        assert.equal(t.annotations.readOnlyHint, false, "the scaffold writes files");
+      if (["wow_addon_scaffold", "wow_model_export", "wow_texture_export"].includes(t.name)) {
+        assert.equal(t.annotations.readOnlyHint, false, `${t.name} writes files`);
         assert.equal(t.annotations.destructiveHint, true, "and can overwrite them");
       } else {
         assert.equal(t.annotations.readOnlyHint, true, `${t.name} should be read-only`);
@@ -1300,7 +1300,7 @@ console.log("\n== Suggested commands are runnable ==");
 
 const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const binNames = Object.keys(pkg.bin ?? {});
-const SYNC_TARGETS = ["api", "ui-source", "game-data", "all"];
+const SYNC_TARGETS = ["api", "ui-source", "game-data", "model-data", "all"];
 
 /**
  * Only what a user can actually see. Comments in the shipped JS discuss the

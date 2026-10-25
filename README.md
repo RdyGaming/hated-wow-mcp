@@ -10,7 +10,7 @@ Lua API** for the client you are targeting, **Blizzard's own shipped UI source**
 so it can see how the game itself does something, and the **game's art and file
 data** so texture references are real rather than invented.
 
-20 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
+23 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
 Codex and VS Code is below, and anything else that speaks MCP works too. Or
 [browse them in a local web UI](#browse-it-without-an-ai-client) with no AI at
 all.
@@ -128,9 +128,10 @@ That starts a live server in about 4 seconds. From a
 [clone](#running-from-a-clone), `"command": "node"` with the path to
 `dist/index.js` starts in half a second and needs no network.
 
-**Tool approvals.** 19 of the 20 tools only read local data and declare that
+**Tool approvals.** 20 of the 23 tools only read local data and declare that
 (`readOnlyHint`), so a client that prompts per call can safely skip them. The
-exception is `wow_addon_scaffold`. It writes files only when you pass `write`,
+exceptions are `wow_model_export` and `wow_texture_export`, which write into the
+folder you name, and `wow_addon_scaffold`. The scaffold writes files only when you pass `write`,
 and it refuses to overwrite an addon that already exists unless you also pass
 `overwrite`. If you use auto-approve, leave that one out of the list.
 
@@ -204,7 +205,7 @@ You should get a full 18-value signature. Or run the server directly:
 npx hated-wow-mcp --list
 ```
 
-That should print all 20 tools.
+That should print all 23 tools.
 
 ### Where the data lives
 
@@ -377,6 +378,30 @@ tracks patches without anyone hand-maintaining a list.
 | `wow_icon_search` | Find an icon and get both usable reference forms |
 | `wow_atlas_search` | Find a `SetAtlas` element with size and coordinates |
 | `wow_data_status` | Show which game data sets are synced |
+
+**Model export** (reads your local install, no wow.export app needed)
+
+| Tool | Purpose |
+| --- | --- |
+| `wow_model_search` | Find M2 (creature, prop) and WMO (building) models by path words or FileDataID |
+| `wow_model_export` | Export a model to glTF with animations (M2) or OBJ+MTL (WMO), with PNG textures beside it |
+| `wow_texture_export` | Decode a BLP texture to PNG |
+
+The exporter is a headless port of [wow.export](https://github.com/Kruithne/wow.export)
+(MIT, see [THIRD_PARTY.md](THIRD_PARTY.md)). It opens the CASC storage under your
+game folder directly and writes into the folder you name, in wow.export's layout,
+so the relative texture paths in the files resolve in Blender. MTL paths use
+forward slashes because Blender's importer mangles backslash-relative ones. It
+needs `sync game-data` for the listfile and one small extra sync:
+
+```
+npx -y hated-wow-mcp sync model-data
+```
+
+That fetches table layouts from WoWDBDefs and decryption keys from TACTKeys; no
+game files are downloaded. The first export in a session takes about 30 seconds
+while the storage index loads. Creature skins that come from the creature display
+tables are not applied yet, so some creature models export untextured.
 
 ---
 
@@ -571,7 +596,8 @@ Found a security problem? Please report it privately — see
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). The model exporter includes code from wow.export
+(MIT, Kruithne and Marlamin); see [THIRD_PARTY.md](THIRD_PARTY.md).
 
 Not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft is a
 trademark of Blizzard Entertainment, Inc. All game data is fetched at runtime
