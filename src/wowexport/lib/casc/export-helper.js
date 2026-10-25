@@ -27,7 +27,13 @@ class ExportHelper {
 		if (core.view.config.removePathSpaces)
 			file = file.replace(/\s/g, '');
 
-		return path.normalize(path.join(core.view.config.exportDirectory, file));
+		// hated-wow-mcp: listfile names are untrusted input; never leave the export root.
+		const root = path.resolve(core.view.config.exportDirectory);
+		const out = path.resolve(root, file.replace(/^[\\/]+/, ''));
+		if (out !== root && !out.startsWith(root + path.sep))
+			throw new Error('Refusing to write outside the export directory: ' + file);
+
+		return path.normalize(out);
 	}
 
 	/**

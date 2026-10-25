@@ -93,6 +93,18 @@ await verify("CASC root: modern layout maps FileDataIDs to content keys", async 
   assert.equal(casc.rootEntries.get(100).get(0), "aa".repeat(16));
 });
 
+await verify("export paths cannot escape the export directory", () => {
+  const core = require(join(lib, "core.js"));
+  const ExportHelper = require(join(lib, "casc", "export-helper.js"));
+  const root = join(tmpdir(), "wowexport-root");
+  core.view.config.exportDirectory = root;
+  assert.equal(ExportHelper.getExportPath("creature/a/b.m2"), join(root, "creature", "a", "b.m2"));
+  assert.throws(() => ExportHelper.getExportPath("../../outside.txt"), /outside the export directory/);
+  assert.throws(() => ExportHelper.getExportPath("a/../../outside.txt"), /outside the export directory/);
+  // leading slashes are treated as relative, never as an absolute path
+  assert.equal(ExportHelper.getExportPath("/abs/x.png"), join(root, "abs", "x.png"));
+});
+
 // ---------------------------------------------------------------------------
 // One real export, only where the install and synced data are present.
 // ---------------------------------------------------------------------------

@@ -919,7 +919,7 @@ class WMOExporter {
 				continue;
 
 			const groupName = wmo.groupNames[group.nameOfs];
-			const groupFileName = wmoName + '_' + groupName + '.obj';
+			const groupFileName = ExportHelper.sanitizeFilename(wmoName + '_' + groupName) + '.obj';
 			const groupOut = path.join(outDir, groupFileName);
 
 			const obj = new OBJWriter(groupOut);
