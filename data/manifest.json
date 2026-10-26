@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-10-19T12:12:41.466Z",
+  "generatedAt": "2026-10-26T12:18:18.463Z",
   "flavors": {
     "mainline": {
       "functions": 6440,
       "events": 1785,
       "tables": 1697,
-      "globals": 6832,
-      "cvars": 1652
+      "globals": 6913,
+      "cvars": 1662
     },
     "classic": {
-      "functions": 4590,
+      "functions": 4591,
       "events": 1484,
       "tables": 1330,
       "globals": 5351,
