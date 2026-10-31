@@ -19,14 +19,14 @@ module.exports = {
 	MAX_RECENT_LOCAL: 3, // Maximum recent local installations to remember.
 
 
-	// Current version of wow.export
+	// Version of the ported exporter code.
 	VERSION,
 
 	// Filter used to filter out WMO LOD files.
 	LISTFILE_MODEL_FILTER: /(_\d\d\d_)|(_\d\d\d.wmo$)|(lod\d.wmo$)/,
 
 	// User-agent used for HTTP/HTTPs requests.
-	USER_AGENT: 'hated-wow-mcp (wow.export ' + VERSION + ')',
+	USER_AGENT: 'hated-wow-mcp',
 
 	// Defines Blender constants.
 
@@ -56,8 +56,6 @@ module.exports = {
 		LISTFILE_DATA: 'listfile.txt', // Master listfile data file.
 		TACT_KEYS: path.join(DATA_PATH, 'tact.json'), // Tact key cache.
 		REALMLIST: path.join(DATA_PATH, 'realmlist.json'), // Realmlist cache.
-		SUBMIT_URL: 'https://www.kruithne.net/wow.export/v2/cache/submit',
-		FINALIZE_URL: 'https://www.kruithne.net/wow.export/v2/cache/finalize',
 		STATE_FILE: path.join(DATA_PATH, 'cache_state.json'),
 	},
 
@@ -102,11 +100,6 @@ module.exports = {
 
 	TIME: {
 		DAY: 86400000 // Milliseconds in a day.
-	},
-
-	KINO: {
-		API_URL: 'https://www.kruithne.net/wow.export/v2/get_video',
-		POLL_INTERVAL: 20000
 	},
 
 	MAGIC: {

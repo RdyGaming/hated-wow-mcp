@@ -209,7 +209,7 @@ class GLTFWriter {
 		const root = {
 			asset: {
 				version: '2.0',
-				generator: util.format('wow.export v%s %s [%s]', manifest.version, manifest.flavour, manifest.guid)
+				generator: util.format('hated-wow-mcp v%s %s [%s]', manifest.version, manifest.flavour, manifest.guid)
 			},
 			nodes: [
 				{

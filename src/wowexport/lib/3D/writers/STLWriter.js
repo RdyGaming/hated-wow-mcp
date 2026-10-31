@@ -144,7 +144,7 @@ class STLWriter {
 		const buffer = BufferWrapper.alloc(buffer_size, true);
 
 		// write header (80 bytes)
-		const header = 'Exported using wow.export v' + constants.VERSION;
+		const header = 'Exported using hated-wow-mcp';
 		const header_bytes = Buffer.from(header, 'utf8');
 		buffer.writeBuffer(header_bytes);
 

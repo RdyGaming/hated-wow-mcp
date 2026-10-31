@@ -1,5 +1,5 @@
 /**
- * Tests for the ported wow.export code: BLTE parsing, CASC root parsing, and
+ * Tests for the ported exporter code: BLTE parsing, CASC root parsing, and
  * (when a WoW install and the synced data exist) one real export.
  */
 
@@ -32,7 +32,7 @@ async function verify(label, fn) {
 }
 const md5 = (b) => createHash("md5").update(b).digest("hex");
 
-console.log("\n== wow.export port ==");
+console.log("\n== model exporter ==");
 
 await verify("BLTE: single normal block", () => {
   const payload = Buffer.from("hello wow");
@@ -154,5 +154,5 @@ if (findInstallations().length === 0 || setupProblem() !== null) {
   });
 }
 
-console.log(failed ? `\n${failed} failed\n` : "\nwow.export port: all passed\n");
+console.log(failed ? `\n${failed} failed\n` : "\nmodel exporter: all passed\n");
 process.exit(failed ? 1 : 0);

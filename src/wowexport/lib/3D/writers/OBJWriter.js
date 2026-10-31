@@ -145,7 +145,7 @@ class OBJWriter {
 		const writer = new FileWriter(this.out);
 
 		// Write header.
-		await writer.writeLine('# Exported using wow.export v' + constants.VERSION);
+		await writer.writeLine('# Exported using hated-wow-mcp');
 		await writer.writeLine('o ' + this.name);
 
 		// Link material library.

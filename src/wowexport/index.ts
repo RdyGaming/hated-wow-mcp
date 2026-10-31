@@ -1,5 +1,5 @@
 /**
- * Bridge to the model exporter ported from wow.export (see THIRD_PARTY.md).
+ * Bridge to the headless model exporter (ported code, see THIRD_PARTY.md).
  *
  * The ported code is CommonJS under ./lib and is copied into dist by the build
  * (scripts/copy-lib.mjs). It reads the local install's CASC storage directly;
@@ -136,7 +136,7 @@ export interface ModelEntry {
   path: string;
 }
 
-// WMO group/LOD parts, same filter wow.export applies.
+// WMO group/LOD parts, same filter the exporter applies.
 const WMO_PART = /(_\d\d\d_)|(_\d\d\d.wmo$)|(lod\d.wmo$)/;
 
 let models: ModelEntry[] | null = null;

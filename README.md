@@ -6,7 +6,7 @@
 **An MCP server for writing World of Warcraft addons, and for pulling models out
 of the game.** Free and open source.
 
-It gives your AI assistant things it otherwise guesses at: the **in-game Lua
+It gives your MCP client things it otherwise guesses at: the **in-game Lua
 API** for the client you are targeting, **Blizzard's own shipped UI source** so
 it can see how the game itself does something, and the **game's art and file
 data** so texture references are real rather than invented. It can also read
@@ -15,17 +15,17 @@ skins, props, and buildings, as glTF or OBJ with PNG textures, ready for Blender
 
 27 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
 Codex and VS Code is below, and anything else that speaks MCP works too. Or
-[browse them in a local web UI](#browse-it-without-an-ai-client) with no AI at
+[browse them in a local web UI](#browse-it-without-an-mcp-client) with no client at
 all.
 
 > ### ☕ Support this project
 > Hated WoW MCP is free and always will be. If it saves you time, you can buy me
-> a coffee — it genuinely helps keep it maintained through patch cycles.
+> a coffee, it genuinely helps keep it maintained through patch cycles.
 >
 > ### **[buymeacoffee.com/rdygaming](https://buymeacoffee.com/rdygaming)**
 
 Everything here is about code that runs *inside* the client. There is no
-Battle.net web API in this server — no armory lookups, no auction house.
+Battle.net web API in this server, no armory lookups, no auction house.
 
 ---
 
@@ -54,7 +54,7 @@ Edit your config file:
 > **Windows Store install?** If that path doesn't exist, look under
 > `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\` instead.
 
-Add the `mcpServers` block. **If the file already has other keys, keep them** —
+Add the `mcpServers` block. **If the file already has other keys, keep them**:
 merge this in rather than replacing the file:
 
 ```json
@@ -71,7 +71,7 @@ merge this in rather than replacing the file:
 }
 ```
 
-Then **fully quit Claude Desktop from the system tray** and reopen it — closing
+Then **fully quit Claude Desktop from the system tray** and reopen it, closing
 the window is not enough, and the config is only read at startup.
 
 ### Other clients
@@ -144,10 +144,10 @@ See `mcp-config.example.json` in this repo for a starting file.
 
 The Lua API indexes ship inside the package, so **API search, type and event
 lookup, linting, TOC/XML validation and scaffolding work the moment you add it**
-— no sync, no waiting.
+with no sync and no waiting.
 
 The UI source corpus and the art/FileDataID lookups are too large to ship, so
-those nine tools — including the CVar lookup — need a one-time sync. It needs
+those nine tools, the CVar lookup included, need a one-time sync. It needs
 **git** on your PATH:
 
 ```bash
@@ -160,7 +160,7 @@ npx -y hated-wow-mcp sync all
 > and the atlas step may fail with HTTP 403.
 
 That fetches a ~44 MB shallow clone of Blizzard's UI source and a ~149 MB
-listfile — a few minutes on first run. Re-running later is cheap: an unchanged
+listfile, a few minutes on first run. Re-running later is cheap: an unchanged
 listfile is revalidated rather than re-downloaded, so a no-op sync takes about
 two seconds.
 
@@ -201,7 +201,7 @@ works on API search, linting and `.toc` validation with no sync at all. See
 
 ### Verify it worked
 
-Ask your assistant: *"Using the WoW MCP, what does C_Item.GetItemInfo return?"*
+Ask in your client: *"Using the WoW MCP, what does C_Item.GetItemInfo return?"*
 You should get a full 18-value signature. Or run the server directly:
 
 ```bash
@@ -212,7 +212,7 @@ That should print all 27 tools.
 
 ### Where the data lives
 
-Synced data never goes inside the package — that is what makes `npx` work. It
+Synced data never goes inside the package. That is what makes `npx` work. It
 lands in your OS cache directory:
 
 | Platform | Location |
@@ -221,7 +221,7 @@ lands in your OS cache directory:
 | macOS | `~/Library/Caches/hated-wow-mcp` |
 | Linux | `$XDG_CACHE_HOME/hated-wow-mcp`, else `~/.cache/hated-wow-mcp` |
 
-Set `WOW_MCP_DATA_DIR` to override — useful for putting ~70 MB on another
+Set `WOW_MCP_DATA_DIR` to override, useful for putting ~70 MB on another
 drive, or sharing one sync between several installs. `wow_data_status` always
 reports where it resolved to and why.
 
@@ -230,7 +230,7 @@ reports where it resolved to and why.
 ## Running from a clone
 
 You only need this to modify the server, or to use the
-[local web UI](#browse-it-without-an-ai-client), which is not part of the
+[local web UI](#browse-it-without-an-mcp-client), which is not part of the
 published package. Requires **Node 20+** and **git**.
 
 ```bash
@@ -268,9 +268,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 
 ---
 
-## Browse it without an AI client
+## Browse it without an MCP client
 
-Every tool also runs in a local web UI — no assistant, no API key, no tokens.
+Every tool also runs in a local web UI: no client, no API key, no tokens.
 Useful for looking something up quickly, or for checking what a tool returns
 before you wire it into a prompt.
 
@@ -288,8 +288,8 @@ types, and the help text all come from the tool's own schema, so the UI always
 matches what the tool actually accepts. Results render in a Monaco editor with
 a copy button.
 
-This talks to the tools directly — it does **not** speak the MCP protocol, so
-nothing here interferes with the server your assistant is using. Both can run
+This talks to the tools directly. It does **not** speak the MCP protocol, so
+nothing here interferes with the server your client is using. Both can run
 at the same time.
 
 Two things worth knowing:
@@ -297,9 +297,9 @@ Two things worth knowing:
 - **Run `npm run sync-all` first.** The UI is only as complete as your synced
   data; without it the UI source and game data tools return nothing.
 - **Art tools show paths, not pictures.** `wow_icon_search` and friends return
-  FileDataIDs and texture paths — there is no BLP decoding (see
-  [Known limits](#known-limits)). Paste a FileDataID into
-  [wago.tools](https://wago.tools) to see the actual image.
+  FileDataIDs and texture paths. Paste a FileDataID into
+  [wago.tools](https://wago.tools) to see the actual image, or decode it to PNG
+  with `wow_texture_export`.
 
 Set `PORT` if 3001 is taken:
 
@@ -307,14 +307,14 @@ Set `PORT` if 3001 is taken:
 PORT=4000 npm run web
 ```
 
-The UI's dependencies (`express`, `cors`) are dev dependencies — a normal
+The UI's dependencies (`express`, `cors`) are dev dependencies, so a normal
 `npm install` picks them up, and the MCP server itself never imports them.
 
 ---
 
 ## Configuration
 
-All settings are optional — see `.env.example`.
+All settings are optional, see `.env.example`.
 
 | Variable | Purpose |
 | --- | --- |
@@ -329,7 +329,7 @@ All settings are optional — see `.env.example`.
 | Data set | Contents | Source |
 | --- | --- | --- |
 | Lua API index | 6,335 functions, 1,783 events, 1,676 enums/structures, 6,704 globals (retail; Classic and Classic Era indexed separately) | Blizzard's own generated `/api` documentation, mirrored at [Gethe/wow-ui-source](https://github.com/Gethe/wow-ui-source) |
-| UI source | 4,036 files across 348 `Blizzard_*` packages — 4,044 inheritable XML templates, 3,488 mixins, 26,859 mixin methods | Same mirror |
+| UI source | 4,036 files across 348 `Blizzard_*` packages, 4,044 inheritable XML templates, 3,488 mixins, 26,859 mixin methods | Same mirror |
 | CVars | 1,635 console variables with defaults, categories, scope and Blizzard's own descriptions; 451 also carry usage evidence from the UI source | [Ketho/BlizzardInterfaceResources](https://github.com/Ketho/BlizzardInterfaceResources) + UI source |
 | UI schema | Blizzard's `UI.xsd`, parsed for element/attribute validation | Same mirror |
 | File index | 172,175 interface files including 36,624 icons, mapped to FileDataIDs | [wowdev/wow-listfile](https://github.com/wowdev/wow-listfile) |
@@ -382,7 +382,7 @@ tracks patches without anyone hand-maintaining a list.
 | `wow_atlas_search` | Find a `SetAtlas` element with size and coordinates |
 | `wow_data_status` | Show which game data sets are synced |
 
-**Model export** (reads your local install, no wow.export app needed)
+**Model export** (reads your local install directly)
 
 | Tool | Purpose |
 | --- | --- |
@@ -394,12 +394,12 @@ tracks patches without anyone hand-maintaining a list.
 | `wow_map_search` | Find maps by name, directory or id, and turn a world position into its terrain tile |
 | `wow_map_export` | Export terrain tiles (ADT) to OBJ with a blended texture, alpha masks, or geometry only, optionally with the tile's buildings and props |
 
-The exporter is a headless port of [wow.export](https://github.com/Kruithne/wow.export)
-(MIT, see [THIRD_PARTY.md](THIRD_PARTY.md)). It opens the CASC storage under your
-game folder directly and writes into the folder you name, in wow.export's layout,
-so the relative texture paths in the files resolve in Blender. MTL paths use
+The exporter opens the CASC storage under your game folder directly and writes
+into the folder you name, keeping the game's own folder layout, so the relative
+texture paths in the files resolve in Blender. MTL paths use
 forward slashes because Blender's importer mangles backslash-relative ones. It
-needs `sync game-data` for the listfile and one small extra sync:
+needs `sync game-data` for the listfile and one small extra sync (`sync all`
+runs both):
 
 ```
 npx -y hated-wow-mcp sync model-data
@@ -430,7 +430,7 @@ The same code is clean on Classic, because there the global still exists. That
 distinction is derived from Blizzard's data, not asserted by hand.
 
 It also catches the taint mistakes that produce "Interface action failed because
-of an AddOn" — calling protected functions, reassigning Blizzard globals,
+of an AddOn": calling protected functions, reassigning Blizzard globals,
 touching secure frames during combat lockdown.
 
 **Measured false-positive rate**, checked by running both validators across
@@ -438,7 +438,7 @@ Blizzard's own shipped code:
 
 - XML validator: **0 of 1,091** files report an error.
 - Lua linter: **48 of 2,551** files (1.9%), and those are almost entirely
-  correct — they are Blizzard's own `Blizzard_Deprecated*` shims, which exist
+  correct: they are Blizzard's own `Blizzard_Deprecated*` shims, which exist
   precisely to redefine removed APIs.
 
 ---
@@ -463,7 +463,7 @@ npx -y hated-wow-mcp sync all
 npx -y hated-wow-mcp sync game-data -- --full
 ```
 
-`sync-api` is checkout-only — it regenerates data that ships inside the package,
+`sync-api` is checkout-only: it regenerates data that ships inside the package,
 so an installed copy gets a newer API index by upgrading rather than syncing.
 
 The data comes from public upstream mirrors, so re-syncing picks up patch changes
@@ -472,7 +472,7 @@ patch by hours to days.
 
 **Re-syncing is cheap when nothing changed.** The 149 MB listfile is revalidated
 with its `ETag`, so an unchanged one costs a single round trip rather than a
-fresh download, and the index is left alone rather than rebuilt — a no-op
+fresh download, and the index is left alone rather than rebuilt, a no-op
 `sync-game-data` finishes in about two seconds. Pass `--force` to ignore the
 cache and rebuild regardless.
 
@@ -490,12 +490,12 @@ browser visit from the same connection clears the way for the atlas download
 that follows. Doing this first avoids most atlas failures.
 
 If the atlas step still reports HTTP 403, wago.tools is refusing the connection
-outright — it blocks many datacentre, cloud and VPN IP ranges. Run it from a
+outright: it blocks many datacentre, cloud and VPN IP ranges. Run it from a
 normal desktop connection, with any VPN off.
 
 This never blocks the rest of the sync. The file index in the same script comes
 from GitHub and works regardless, and only `wow_atlas_search` depends on the
-atlas step — the other 19 tools are unaffected.
+atlas step. The other 19 tools are unaffected.
 
 ---
 
@@ -546,9 +546,9 @@ data/                  bundled API indexes, plus synced ones in a clone
   on retail, so `wow_atlas_search` answers from the client you name and says
   which build it used. A client whose atlas is not built says so and gives the
   command; it does not borrow retail's.
-- **No BLP decoding.** Art tools return paths, FileDataIDs and atlas coordinates
-  — not rendered images. Extracting actual textures needs a CASC tool such as
-  wow.export against your own installation.
+- **Search tools show paths, not pictures.** They return paths, FileDataIDs and
+  atlas coordinates. `wow_texture_export` decodes a texture to PNG from your own
+  installation.
 - **The linter's scope model is approximate.** It is a lexer with a scope stack,
   not a full Lua parser. It errs toward silence on ambiguous code.
 
@@ -566,7 +566,7 @@ there is no path to get wrong.
 
 **UI source, art or icon lookups return nothing.** Those need the one-time sync.
 Run `npx -y hated-wow-mcp sync all` (or `npm run sync-all` from a clone), then check
-`wow_data_status` — it reports where it looked and when that data was built.
+`wow_data_status`: it reports where it looked and when that data was built.
 
 **The sync fails.** You need `git` on your PATH for the UI source step. For an
 HTTP 403 on the atlas step, see the wago.tools note in
@@ -579,8 +579,8 @@ release with `npx -y hated-wow-mcp@latest`, or clear it with `npm cache clean
 **"Filename too long" / "Clone succeeded, but checkout failed" (Windows).** Some
 Blizzard filenames are 108 characters on their own, so a deep clone path can
 exceed Windows' 260-character limit. The sync scripts pass `core.longpaths=true`
-to git to handle this. If you still hit it, clone somewhere shorter — keep the
-path under about 150 characters (`C:\dev\hated-wow-mcp` is plenty of room) — or
+to git to handle this. If you still hit it, clone somewhere shorter, keep the
+path under about 150 characters (`C:\dev\hated-wow-mcp` is plenty of room), or
 enable long paths system-wide in Windows.
 
 ---
@@ -595,15 +595,15 @@ differ, and what to know before adding a tool. Participation is governed by the
 [Code of Conduct](CODE_OF_CONDUCT.md).
 
 The most valuable report is a lookup that returns something **wrong** rather
-than nothing — there is an issue template for it that asks how you verified the
+than nothing: there is an issue template for it that asks how you verified the
 real behaviour, so the fix can be checked against the game.
 
-Found a security problem? Please report it privately — see
+Found a security problem? Please report it privately. See
 [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The model exporter includes code from wow.export
+MIT, see [LICENSE](LICENSE). The model exporter includes code from wow.export
 (MIT, Kruithne and Marlamin); see [THIRD_PARTY.md](THIRD_PARTY.md).
 
 Not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft is a

@@ -59,7 +59,7 @@ export const modelTools: ToolDef[] = [
       description:
         "Export a model from the local WoW install's game files into a folder, headless. " +
         "M2 models become glTF with animations (or GLB/OBJ); WMO models become OBJ+MTL " +
-        "(or glTF). Textures are decoded to PNG beside the model in wow.export's folder " +
+        "(or glTF). Textures are decoded to PNG beside the model in the game's folder " +
         "layout, so relative texture paths resolve in Blender. The first call opens the " +
         "game storage and takes about 30 seconds. Needs the game-data and model-data syncs.",
       inputSchema: {
