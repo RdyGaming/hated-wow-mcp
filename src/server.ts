@@ -9,6 +9,7 @@ import { PKG_ROOT } from "./paths.js";
 import { apiTools } from "./tools/api.tools.js";
 import { devTools } from "./tools/dev.tools.js";
 import { gameDataTools } from "./tools/gamedata.tools.js";
+import { modelTools } from "./tools/models.tools.js";
 import { errorText, stalenessNote, type ToolDef } from "./tools/shared.js";
 import { loadUiSourceGeneratedAt } from "./uisource/index.js";
 
@@ -76,6 +77,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...uiSourceTools,
   ...devTools,
   ...gameDataTools,
+  ...modelTools,
 ].map(withStalenessNote);
 
 export function createServer(): McpServer {
