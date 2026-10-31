@@ -6,7 +6,7 @@ The model exporter in `src/wowexport/lib/` is a headless port of
 [wow.export](https://github.com/Kruithne/wow.export) by **Kruithne** and
 **Marlamin**, taken at commit `c2fd7bde36a712be78a5da896c995b84fbfa2545`
 (version 0.2.19). It is used under the MIT license; the full license text is in
-`src/wowexport/WOW_EXPORT_LICENSE`.
+`src/wowexport/WOW_EXPORT_LICENSE` (shipped as `dist/wowexport/WOW_EXPORT_LICENSE`).
 
 Copied with small edits: the CASC reader (BLTE, encoding and root parsing, Salsa20),
 the BLP decoder, the DB2/DBD reader, the M2, WMO, SKEL and ANIM loaders, the glTF,

@@ -4,3 +4,4 @@ import { cpSync, rmSync } from "node:fs";
 
 rmSync("dist/wowexport/lib", { recursive: true, force: true });
 cpSync("src/wowexport/lib", "dist/wowexport/lib", { recursive: true });
+cpSync("src/wowexport/WOW_EXPORT_LICENSE", "dist/wowexport/WOW_EXPORT_LICENSE");
