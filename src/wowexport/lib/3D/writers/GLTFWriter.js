@@ -73,6 +73,7 @@ class GLTFWriter {
 	constructor(out, name) {
 		this.out = out;
 		this.name = name;
+		this.materialBlend = new Map();
 
 		this.vertices = [];
 		this.normals = [];
@@ -169,8 +170,11 @@ class GLTFWriter {
 	 * @param {Array} triangles
 	 * @param {string} matName
 	 */
-	addMesh(name, triangles, matName) {
+	addMesh(name, triangles, matName, blend) {
 		this.meshes.push({ name, triangles, matName });
+		// M2 blend mode per material: 0 opaque, 1 alpha key, 2 alpha, 3+ additive or modulate (glows, reflections)
+		if (blend !== undefined && matName !== undefined)
+			this.materialBlend.set(matName, Math.min(blend, this.materialBlend.get(matName) ?? blend));
 	}
 
 	/**
@@ -931,6 +935,7 @@ class GLTFWriter {
 			}
 
 			root.textures.push({ source: imageIndex });
+			const blend = this.materialBlend.get(texFile.matName);
 			root.materials.push({
 				name: path.basename(texFile.matName, path.extname(texFile.matName)),
 				emissiveFactor: [0, 0, 0],
@@ -939,7 +944,9 @@ class GLTFWriter {
 						index: textureIndex
 					},
 					metallicFactor: 0
-				}
+				},
+				...(blend === 1 ? { alphaMode: 'MASK', alphaCutoff: 0.5 } : blend >= 2 ? { alphaMode: 'BLEND' } : {}),
+				...(blend !== undefined ? { extras: { wowBlend: blend } } : {})
 			});
 
 			materialMap.set(texFile.matName, materialIndex);

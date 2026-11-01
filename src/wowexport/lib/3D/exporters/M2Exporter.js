@@ -391,7 +391,7 @@ class M2Exporter {
 					matName = textureMap.get(dataTextureKey).matName;
 			}
 
-			gltf.addMesh(GeosetMapper.getGeosetName(mI, mesh.submeshID), indices, matName);
+			gltf.addMesh(GeosetMapper.getGeosetName(mI, mesh.submeshID), indices, matName, texUnit ? this.m2.materials[texUnit.materialIndex]?.blendingMode : undefined);
 		}
 
 		// add equipment models for GLTF export
