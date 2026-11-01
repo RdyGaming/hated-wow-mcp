@@ -150,7 +150,7 @@ const INSTALL_DIRS: Record<string, string> = {
   cata: "_classic_",
   wrath: "_classic_",
   tbc: "_classic_",
-  forever: "_classic_beta_",
+  forever: "_forever_",
 };
 
 /** Places a stock WoW install lands, in the order we should try them. */
@@ -210,7 +210,7 @@ export function findInstallations(): Installation[] {
  *
  * The default flavor's index always, because every tool answers for it when a
  * call names no client. Then one for each client found installed, so a machine
- * with `_classic_beta_` gets WoW Forever without anyone remembering `-- forever`.
+ * with `_forever_` gets WoW Forever without anyone remembering `-- forever`.
  * Indexing every flavor unconditionally would hand each retail-only developer a
  * second ~46MB checkout they will never query, which is why this follows the
  * installs instead.
@@ -251,8 +251,8 @@ function readBuild(root: string, flavorDir: string): string | undefined {
         ? "wow"
         : flavorDir === "_classic_era_"
           ? "wow_classic_era"
-          : flavorDir === "_classic_beta_"
-            ? "wow_classic_beta"
+          : flavorDir === "_forever_"
+            ? "wowf"
             : "wow_classic";
     for (const line of lines.slice(1)) {
       const cols = line.split("|");

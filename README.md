@@ -168,7 +168,7 @@ two seconds.
 
 A bare `sync all` (or `sync ui-source`) indexes your default client's UI source,
 retail unless you set `WOW_DEFAULT_FLAVOR`, **plus every WoW client it finds
-installed**. With `_classic_beta_` installed, WoW Forever is indexed with no
+installed**. With `_forever_` installed, WoW Forever is indexed with no
 flag. With only retail installed, nothing extra is downloaded. The log says what
 it chose.
 
@@ -532,17 +532,12 @@ data/                  bundled API indexes, plus synced ones in a clone
 - **Classic progression flavors share one index.** Blizzard publishes generated
   docs for the clients that are actually running; Cata/Wrath/TBC map onto the
   Classic index, so answers for those are approximate.
-- **WoW Forever is missing three lists.** Its client is built on the retail
-  codebase (Blizzard calls the game type `camelot`), so it has its own index,
-  and the API docs and UI source come from Blizzard's own files like every other
-  client. But the community resource repo that supplies the flat global-function
-  list, the event list and the CVar registry has no branch for it yet. So on
-  `forever`: unknown-function lint checks are turned off (with a note saying so,
-  rather than flagging working code), a bare name in `wow_api_diff` reads "not
-  documented" instead of "not available", and `wow_cvar_search` shows only the
-  CVars Blizzard's UI touches, with no defaults, descriptions or protection
-  flags. Once upstream has a branch for it, picking these up is a one-line
-  change to the branch table in `src/sync/api.ts`.
+- **WoW Forever is its own client.** It is built on the retail codebase
+  (Blizzard calls the game type `camelot`) at Interface 16001, so it has its
+  own index and does not share Classic Era's. Both upstream mirrors carry it,
+  so it has the same five lists as retail. The Battle.net product is `wowf` and
+  the install folder is `_forever_`; the old `_classic_beta_` folder from the
+  beta is no longer detected.
 - **Atlases are built per client, so each has to be synced.** Retail and WoW
   Forever share 16,788 atlas names, but 3,666 exist only on Forever and 720 only
   on retail, so `wow_atlas_search` answers from the client you name and says

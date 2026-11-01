@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-26T12:18:18.463Z",
+  "generatedAt": "2026-11-01T12:34:01.822Z",
   "flavors": {
     "mainline": {
       "functions": 6440,
@@ -24,10 +24,10 @@
     },
     "forever": {
       "functions": 6617,
-      "events": 1814,
+      "events": 1815,
       "tables": 1759,
-      "globals": 0,
-      "cvars": 0
+      "globals": 7087,
+      "cvars": 1785
     }
   }
 }

@@ -71,7 +71,7 @@ interface Driver {
 
 const PRODUCT_BY_API: Record<string, string> = {
   mainline: "wow",
-  forever: "wow_classic_beta",
+  forever: "wowf",
   classic: "wow_classic",
   vanilla: "wow_classic_era",
 };

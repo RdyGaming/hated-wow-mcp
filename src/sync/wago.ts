@@ -13,7 +13,7 @@ export const WAGO_PRODUCT: Record<string, string> = {
   mainline: "wow",
   classic: "wow_classic",
   vanilla: "wow_classic_era",
-  forever: "wow_classic_beta",
+  forever: "wowf",
 };
 
 export interface WagoBuild {

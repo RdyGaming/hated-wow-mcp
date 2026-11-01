@@ -159,7 +159,7 @@ export interface AtlasIndex {
   build: string;
   /** Index key this was built for. Absent in a retail index from before there was one per client. */
   flavor?: string;
-  /** The wago product the build came from, e.g. wow_classic_beta. */
+  /** The wago product the build came from, e.g. wowf. */
   product?: string;
   counts: Record<string, number>;
   atlases: AtlasEntry[];

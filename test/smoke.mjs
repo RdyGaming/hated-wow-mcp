@@ -708,17 +708,17 @@ await check("a newer Interface number is not called out of date", "wow_toc_valid
   has(b, "newer than");
 });
 
-await verify("the shipped index for WoW Forever says what upstream does not publish", async () => {
+await verify("the shipped index for WoW Forever carries all five lists", async () => {
   const { readFile: rf } = await import("node:fs/promises");
   const idx = JSON.parse(
     await rf(new URL("../data/api-forever.json", import.meta.url), "utf8"),
   );
   assert.ok(idx.counts.functions > 1000, `only ${idx.counts.functions} functions`);
-  assert.equal(idx.upstream.resources, null, "there is no Ketho branch for it");
-  // Empty lists here mean "no source", not "this client has none".
-  for (const k of ["globals", "eventNames", "cvars"]) {
-    assert.ok(idx.unavailable.includes(k), `${k} should be marked unavailable`);
-  }
+  assert.equal(idx.upstream.resources, "Ketho/BlizzardInterfaceResources@forever");
+  // Until 2026-10 upstream had no branch for it and these were marked unavailable.
+  assert.equal(idx.unavailable, undefined, "nothing should be marked unavailable");
+  assert.ok(idx.counts.globals > 1000, `only ${idx.counts.globals} globals`);
+  assert.ok(idx.counts.cvars > 1000, `only ${idx.counts.cvars} cvars`);
 });
 
 await verify("the manifest still lists every flavor after a single-flavor sync", async () => {
@@ -736,13 +736,14 @@ await check("API search answers from the WoW Forever index", "wow_api_search", {
   has(b, "C_Item.GetItemInfo");
 });
 
-await check("lint does not flag legacy globals it has no list for", "wow_lua_lint", {
+await check("lint checks unknown functions on WoW Forever now that it has a global list", "wow_lua_lint", {
   flavor: "forever",
   code: `local a = strsplit("-", "a-b")\ntinsert({}, 1)\nlocal x = DefinitelyNotABlizzardApi(1)`,
 }, (b) => {
-  lacks(b, "api/unknown");
-  lacks(b, "api/moved-to-namespace");
-  has(b, "api/unchecked");
+  has(b, "api/unknown");
+  has(b, "DefinitelyNotABlizzardApi");
+  lacks(b, "strsplit");
+  lacks(b, "api/unchecked");
 });
 
 await check("lint still catches removed API on WoW Forever", "wow_lua_lint", {
@@ -760,9 +761,14 @@ await check("the same unknown call is still flagged on retail", "wow_lua_lint", 
   lacks(b, "api/unchecked");
 });
 
-await check("api diff does not claim a bare name is absent when it cannot know", "wow_api_diff", {
+await check("api diff answers a bare legacy global for every client", "wow_api_diff", {
   name: "strsplit",
-}, (b) => has(b, "may still be a legacy global"));
+}, (b) => {
+  // Every client now has a global list, so no row hedges with "not documented".
+  lacks(b, "may still be a legacy global");
+  lacks(b, "NOT AVAILABLE");
+  has(b, "WoW Forever (Camelot)");
+});
 
 await check("api diff stays definite for a qualified name", "wow_api_diff", {
   name: "C_DefinitelyNotAnApi.Nothing",
@@ -810,7 +816,7 @@ await verify("an unsynced flavor never gets another flavor's UI source", async (
   }
 });
 
-await verify("a WoW Forever install is detected under _classic_beta_", async () => {
+await verify("a WoW Forever install is detected under _forever_", async () => {
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -819,16 +825,16 @@ await verify("a WoW Forever install is detected under _classic_beta_", async () 
   const root = mkdtempSync(join(tmpdir(), "wowroot-"));
   const prior = process.env.WOW_INSTALL_PATH;
   try {
-    mkdirSync(join(root, "_classic_beta_", "Interface", "AddOns"), { recursive: true });
+    mkdirSync(join(root, "_forever_", "Interface", "AddOns"), { recursive: true });
     writeFileSync(
       join(root, ".build.info"),
-      "Branch!STRING:0|Product!STRING:0|Version!STRING:0\nus|wow_classic_beta|1.60.1.69893\n",
+      "Branch!STRING:0|Product!STRING:0|Version!STRING:0\nus|wowf|1.60.1.69893\n",
     );
     process.env.WOW_INSTALL_PATH = root;
     const found = findInstallations();
     assert.equal(found.length, 1);
     assert.equal(found[0].flavor.id, "forever");
-    assert.equal(found[0].build, "1.60.1.69893", "the build must come from the wow_classic_beta row");
+    assert.equal(found[0].build, "1.60.1.69893", "the build must come from the wowf row");
   } finally {
     if (prior === undefined) delete process.env.WOW_INSTALL_PATH;
     else process.env.WOW_INSTALL_PATH = prior;
@@ -859,16 +865,16 @@ await verify("a bare UI source sync follows the installed clients", async () => 
 
   try {
     // The point of the feature: an installed WoW Forever is indexed with no flag.
-    assert.deepEqual(keysFor(["_retail_", "_classic_beta_"]), ["mainline", "forever"]);
+    assert.deepEqual(keysFor(["_retail_", "_forever_"]), ["mainline", "forever"]);
     // The default flavor is always indexed, even if that client is not installed,
     // because every tool answers for it when a call names none.
-    assert.deepEqual(keysFor(["_classic_beta_"]), ["mainline", "forever"]);
+    assert.deepEqual(keysFor(["_forever_"]), ["mainline", "forever"]);
     // Nothing installed: behaves exactly as before, retail only.
     assert.deepEqual(keysFor([]), ["mainline"]);
     // Retail-only developers get no extra download.
     assert.deepEqual(keysFor(["_retail_"]), ["mainline"]);
     // Each client maps to its own index; retail leads and nothing repeats.
-    const all = keysFor(["_classic_beta_", "_classic_era_", "_classic_", "_retail_"]);
+    const all = keysFor(["_forever_", "_classic_era_", "_classic_", "_retail_"]);
     assert.equal(all[0], "mainline");
     assert.deepEqual([...all].sort(), ["classic", "forever", "mainline", "vanilla"]);
     // A different default flavor is honoured.
@@ -1207,7 +1213,7 @@ await verify("the atlas tool takes a flavor and ages its own data", async () => 
 await verify("the newest real wago build is picked per client", async () => {
   const { pickLatestBuild, WAGO_PRODUCT } = await import("../dist/sync/wago.js");
   const builds = {
-    wow_classic_beta: [
+    wowf: [
       { version: "1.60.1.69876", created_at: "2026-09-16 18:23:04" },
       { version: "1.60.1.69913", created_at: "2026-09-18 03:02:04" },
       { version: "1.60.1.69893", created_at: "2026-09-16 23:14:03" },
@@ -1216,7 +1222,7 @@ await verify("the newest real wago build is picked per client", async () => {
     ],
     wow: [{ version: "12.1.0.69814", created_at: "2026-09-12 20:00:00" }],
   };
-  assert.equal(pickLatestBuild(builds, "wow_classic_beta"), "1.60.1.69913");
+  assert.equal(pickLatestBuild(builds, "wowf"), "1.60.1.69913");
   assert.equal(pickLatestBuild(builds, "wow"), "12.1.0.69814");
   assert.equal(pickLatestBuild(builds, "wow_classic_era"), undefined, "no builds must not invent one");
 

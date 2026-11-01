@@ -42,12 +42,10 @@ const FLAVOR_BRANCHES: Record<string, { uiSource: string; resources: string | nu
   classic: { uiSource: "classic", resources: "classic" },
   // Classic Era / Anniversary realms.
   vanilla: { uiSource: "classic_era", resources: "classic_era" },
-  // WoW Forever (Camelot). Gethe mirrors it on `forever`. Ketho's resources
-  // repo has no branch for it, so the flat global, event and CVar lists do not
-  // exist yet: `null` skips those fetches and records the gap in the index,
-  // rather than silently borrowing the Classic lists, which describe a
-  // different client.
-  forever: { uiSource: "forever", resources: null },
+  // WoW Forever (Camelot). Both mirrors carry it on `forever`. A `null` here
+  // would skip the global, event and CVar fetches and record the gap in the
+  // index rather than borrow another client's lists.
+  forever: { uiSource: "forever", resources: "forever" },
 };
 
 const CONCURRENCY = 12;
