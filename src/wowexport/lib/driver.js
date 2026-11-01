@@ -126,7 +126,84 @@ const DBCreatures = require('./db/caches/DBCreatures');
 const DBCreatureList = require('./db/caches/DBCreatureList');
 const DBCreatureDisplayExtra = require('./db/caches/DBCreatureDisplayExtra');
 const DBCharacterCustomization = require('./db/caches/DBCharacterCustomization');
+const DBNpcEquipment = require('./db/caches/DBNpcEquipment');
+const DBItemGeosets = require('./db/caches/DBItemGeosets');
+const DBItemModels = require('./db/caches/DBItemModels');
+const BoneMapper = require('./3D/BoneMapper');
+const SKELLoader = require('./3D/loaders/SKELLoader');
+const { get_attachment_ids_for_slot, ATTACHMENT_ID } = require('./wow/EquipmentSlots');
 const BLPFile = require('./casc/blp');
+
+// Ported from wow.export's apply_creature_equipment_geosets: gear geosets win over customization.
+const applyEquipmentGeosets = (geosets, equipment, extra) => {
+	const slots = new Map([...equipment].filter(([slot]) => slot <= 19).map(([slot, e]) => [slot, e.display_id]));
+	const values = DBItemGeosets.calculateEquipmentGeosetsByDisplay(slots);
+	const clear = (group) => {
+		for (const g of geosets)
+			if (g.id > group * 100 && g.id < group * 100 + 100)
+				g.checked = false;
+	};
+
+	for (const group of DBItemGeosets.getAffectedCharGeosetsByDisplay(slots)) {
+		clear(group);
+		const value = values.get(group);
+		for (const g of geosets)
+			if (value !== undefined && g.id === group * 100 + value)
+				g.checked = true;
+	}
+
+	const head = equipment.get(1);
+	if (head)
+		for (const group of DBItemGeosets.getHelmetHideGeosetsByDisplayId(head.display_id, extra.DisplayRaceID, extra.DisplaySexID))
+			clear(group);
+};
+
+// Helm, shoulders, cloak model and weapons as separate models, plus where each one hangs on the body.
+const exportAttachments = async (m2, equipment, extra, dir, label, format) => {
+	// Modern character models keep bones and attachments in a .skel (and its parent), as the glTF writer reads them.
+	let rig = m2;
+	let bones = m2.bones;
+	if (m2.skeletonFileID) {
+		const skel = new SKELLoader(await casc.getFile(m2.skeletonFileID));
+		await skel.load();
+		const parent = skel.parent_skel_file_id > 0 ? new SKELLoader(await casc.getFile(skel.parent_skel_file_id)) : null;
+		if (parent)
+			await parent.load();
+		rig = skel.attachments?.length ? skel : (parent ?? skel);
+		bones = (parent ?? skel).bones;
+	}
+
+	const out = [];
+	for (const [slot, entry] of equipment) {
+		const display = entry.item_id
+			? DBItemModels.getItemDisplay(entry.item_id, extra?.DisplayRaceID, extra?.DisplaySexID)
+			: DBItemModels.getDisplayData(entry.display_id, extra?.DisplayRaceID, extra?.DisplaySexID);
+		if (!display?.models?.length)
+			continue;
+
+		const ids = slot === 3 ? [ATTACHMENT_ID.SHOULDER_LEFT, ATTACHMENT_ID.SHOULDER_RIGHT] : (get_attachment_ids_for_slot(slot) ?? []);
+		for (let i = 0; i < Math.min(display.models.length, ids.length); i++) {
+			const att = rig.getAttachmentById(ids[i]);
+			if (!att)
+				continue;
+
+			const bone = bones[att.bone];
+			const file = path.join(dir, label + '_slot' + slot + '_' + i + '.' + format);
+			try {
+				const textures = display.textures?.[i] ? [display.textures[i]] : [];
+				const exporter = new M2Exporter(await casc.getFile(display.models[i]), textures, display.models[i]);
+				await exporter.exportAsGLTF(file, makeHelper(), format);
+			} catch (e) {
+				out.push({ slot, model: display.models[i], error: e.message });
+				continue;
+			}
+			// position is in M2 space (x, y, z with z up), which is Blender's own space after a glTF import
+			out.push({ slot, attachment: ids[i], model: display.models[i], file,
+				bone: BoneMapper.get_bone_name(bone.boneID, att.bone, bone.boneNameCRC), position: att.position });
+		}
+	}
+	return out;
+};
 
 let creaturesReady = false;
 const loadCreatures = async () => {
@@ -182,9 +259,11 @@ const searchCreatures = async ({ query, limit = 40 }) => {
 };
 
 /**
- * Export a creature with its skin. Humanoid NPCs (character-model displays) are
- * not supported yet and are reported as such.
- * @param {{creatureId?: number, displayId?: number, outDir: string, format?: string, animations?: boolean}} opts
+ * Export a creature with its skin. Humanoid NPCs (character-model displays) also get their
+ * armor geosets, and with equipment on, helm/shoulder/weapon models written beside the body
+ * plus an attachments list (bone name and M2-space position for each).
+ * creatureIds: extra creature ids of the same NPC; the first one with weapons (Creature.AlwaysItem) arms it.
+ * @param {{creatureId?: number, creatureIds?: number[], displayId?: number, outDir: string, format?: string, animations?: boolean, equipment?: boolean}} opts
  */
 const exportCreature = async (opts) => {
 	await loadCreatures();
@@ -195,9 +274,11 @@ const exportCreature = async (opts) => {
 		const c = DBCreatureList.get_creature_by_id(opts.creatureId);
 		if (!c)
 			throw new Error('Unknown creature id ' + opts.creatureId);
-		displayID = c.displayID;
-		name = c.name;
+		displayID = opts.displayId ?? c.displayID;
+		name = opts.displayId === undefined ? c.name : null;
 	}
+	const ids = [opts.creatureId, ...(opts.creatureIds ?? [])].filter(id => id !== undefined);
+	const weapons = ids.map(id => DBCreatureList.get_creature_by_id(id)?.always_items).find(items => items?.length) ?? [];
 
 	const info = DBCreatures.getDisplayInfo(displayID);
 	const fileDataID = DBCreatures.getFileDataIDByDisplayID(displayID);
@@ -238,6 +319,7 @@ const exportCreature = async (opts) => {
 	await exporter.m2.load();
 	const skin = await exporter.m2.getSkin(0);
 	const geosets = skin.subMeshes.map(sm => ({ id: sm.submeshID, checked: false }));
+	const equipment = new Map();
 
 	if (humanoid) {
 		// Ported from wow.export's apply_customization_geosets.
@@ -264,6 +346,15 @@ const exportCreature = async (opts) => {
 			}
 		}
 
+		if (opts.equipment !== false) {
+			await DBNpcEquipment.ensureInitialized();
+			await DBItemGeosets.ensureInitialized();
+			await DBItemModels.ensureInitialized();
+			for (const [slot, display_id] of DBNpcEquipment.get_equipment(info.extendedDisplayInfoID) ?? [])
+				equipment.set(slot, { display_id });
+			applyEquipmentGeosets(geosets, equipment, extra);
+		}
+
 		// Baked NPC skin goes on the lowest character texture type, as the app does.
 		const bakeID = extra.HDBakeMaterialResourcesID || extra.BakeMaterialResourcesID;
 		const bakeFDID = bakeID > 0 ? DBCharacterCustomization.get_texture_file_data_id(bakeID) : undefined;
@@ -283,6 +374,8 @@ const exportCreature = async (opts) => {
 		}
 	} else {
 		// Same geoset rules as wow.export's creature tab.
+		if (opts.equipment !== false && weapons.length)
+			await DBItemModels.ensureInitialized();
 		for (const g of geosets) {
 			if (info.extraGeosets !== undefined)
 				g.checked = info.extraGeosets.includes(g.id) || g.id === 0 || g.id >= 900;
@@ -307,7 +400,13 @@ const exportCreature = async (opts) => {
 	else
 		throw new Error('Unsupported format ' + format);
 
-	return { path: out, type: 'm2', name: label, files: [], displayID, fileDataID, textures: info.textures };
+	// Weapons (Creature.AlwaysItem) go in the hands of humanoids and creature models alike.
+	if (opts.equipment !== false)
+		weapons.slice(0, 2).forEach((item_id, i) => equipment.set(i === 0 ? 16 : 17, { item_id }));
+
+	const attachments = equipment.size && format !== 'obj'
+		? await exportAttachments(exporter.m2, equipment, extra, path.dirname(out), label, format) : [];
+	return { path: out, type: 'm2', name: label, files: [], displayID, fileDataID, textures: info.textures, humanoid, attachments };
 };
 
 /** Decode a BLP to PNG on disk. */

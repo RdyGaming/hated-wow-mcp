@@ -54,11 +54,19 @@ interface Driver {
   searchCreatures(opts: { query: string; limit?: number }): Promise<CreatureHit[]>;
   exportCreature(opts: {
     creatureId?: number;
+    creatureIds?: number[];
     displayId?: number;
     outDir: string;
     format?: string;
     animations?: boolean;
-  }): Promise<ExportResult & { displayID: number; fileDataID: number; textures: number[] }>;
+    equipment?: boolean;
+  }): Promise<ExportResult & {
+    displayID: number;
+    fileDataID: number;
+    textures: number[];
+    humanoid: boolean;
+    attachments: { slot: number; attachment?: number; model: number; file?: string; bone?: string; position?: number[]; error?: string }[];
+  }>;
 }
 
 const PRODUCT_BY_API: Record<string, string> = {

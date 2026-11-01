@@ -49,6 +49,13 @@ const DBD_TABLES = [
   "ChrRaceXChrModel",
   "ChrRaces",
   "Map",
+  "NPCModelItemSlotDisplayInfo",
+  "ItemDisplayInfo",
+  "ItemDisplayInfoModelMatRes",
+  "ItemModifiedAppearance",
+  "ItemAppearance",
+  "HelmetGeosetData",
+  "ComponentModelFileData",
 ] as const;
 
 async function fetchText(url: string): Promise<string> {
