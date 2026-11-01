@@ -88,6 +88,8 @@ export const SETUP_MESSAGE =
 export function setupProblem(): string | null {
   if (!existsSync(listfileCsv())) return SETUP_MESSAGE;
   if (!existsSync(join(dataDir(), "dbd", "ModelFileData.dbd"))) return SETUP_MESSAGE;
+  // NPC gear tables arrived in 0.8.0; data synced before that lacks them.
+  if (!existsSync(join(dataDir(), "dbd", "NPCModelItemSlotDisplayInfo.dbd"))) return SETUP_MESSAGE;
   return null;
 }
 

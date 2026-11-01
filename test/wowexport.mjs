@@ -152,6 +152,25 @@ if (findInstallations().length === 0 || setupProblem() !== null) {
       rmSync(out, { recursive: true, force: true });
     }
   });
+
+  await verify("real export: an armored NPC gets its helm, shoulders and weapon", async () => {
+    const out = mkdtempSync(join(tmpdir(), "wowexport-npc-"));
+    try {
+      const tool = ALL_TOOLS.find((t) => t.name === "wow_creature_export");
+      const armor = await tool.handler({ displayId: 47144, outputDir: out, format: "glb", animations: false });
+      assert.ok(!armor.isError, armor.content[0].text);
+      const lines = armor.content[0].text.split("\n");
+      assert.equal(lines.filter((l) => /slot 1: .*-> bone/.test(l)).length, 1, "no helm");
+      assert.equal(lines.filter((l) => /slot 3: .*-> bone/.test(l)).length, 2, "not two shoulders");
+      for (const l of lines.filter((l) => l.includes("-> bone"))) {
+        assert.ok(existsSync(l.split(": ")[1].split(" -> ")[0]), `missing ${l}`);
+      }
+      const armed = await tool.handler({ creatureId: 29611, outputDir: out, format: "glb", animations: false });
+      assert.ok(/slot 16: .*-> bone/.test(armed.content[0].text), "King Varian has no sword");
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+  });
 }
 
 console.log(failed ? `\n${failed} failed\n` : "\nmodel exporter: all passed\n");

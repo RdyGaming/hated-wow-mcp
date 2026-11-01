@@ -152,18 +152,23 @@ export const modelTools: ToolDef[] = [
         "Export a creature or NPC as glTF with animations and its skin textures, headless. " +
         "Beasts and monsters get their display skin and geosets. Humanoid NPCs (built from a " +
         "player race model) get the right race and sex model, the NPC's hair, beard and " +
-        "similar geosets, and the baked NPC skin; worn gear is not applied yet. Written to " +
-        "<outputDir>/creatures/.",
+        "similar geosets, the baked NPC skin and their worn armor (boots, robes, tabards and " +
+        "so on). Helms, shoulders and the NPC's weapons are written as separate models beside " +
+        "it, with the bone and position each one attaches to. Written to <outputDir>/creatures/.",
       inputSchema: {
         creatureId: z.number().int().optional().describe("Creature id from wow_creature_search."),
         displayId: z.number().int().optional().describe("Display id, when there is no creature id."),
         outputDir: z.string().describe("Folder to write into (created if missing)."),
         format: z.enum(["gltf", "glb", "obj"]).optional(),
         animations: z.boolean().optional().describe("Include animations. Default true."),
+        equipment: z
+          .boolean()
+          .optional()
+          .describe("Apply worn armor and write helm, shoulder and weapon models. Default true."),
         flavor: z.string().optional().describe(FLAVOR_HELP),
       },
     },
-    handler: async ({ creatureId, displayId, outputDir, format, animations, flavor }) => {
+    handler: async ({ creatureId, displayId, outputDir, format, animations, equipment, flavor }) => {
       const problem = setupProblem();
       if (problem) return errorText(problem);
       if (creatureId === undefined && displayId === undefined) {
@@ -177,12 +182,25 @@ export const modelTools: ToolDef[] = [
           outDir: resolve(outputDir as string),
           ...(format ? { format: format as string } : {}),
           ...(animations !== undefined ? { animations: animations as boolean } : {}),
+          ...(equipment !== undefined ? { equipment: equipment as boolean } : {}),
         });
+        const gear = r.attachments.map((a) =>
+          a.file
+            ? `  slot ${a.slot}: ${a.file} -> bone ${a.bone} at [${a.position!.map((v) => v.toFixed(3)).join(", ")}]`
+            : `  slot ${a.slot}: model ${a.model} failed (${a.error})`,
+        );
         return text(
           [
             `Exported ${r.name} (display ${r.displayID}, model FileDataID ${r.fileDataID})`,
             `Model file: ${r.path}`,
             "Textures and animation data sit beside the model file.",
+            ...(gear.length
+              ? [
+                  "Attached gear (parent each to the named bone at the rest pose; positions are in WoW's",
+                  "Z-up model space, which matches Blender's space after its glTF import):",
+                  ...gear,
+                ]
+              : []),
           ].join("\n"),
         );
       } catch (err) {

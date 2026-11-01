@@ -389,7 +389,7 @@ tracks patches without anyone hand-maintaining a list.
 | `wow_model_search` | Find M2 (creature, prop) and WMO (building) models by path words or FileDataID |
 | `wow_model_export` | Export a model to glTF with animations (M2) or OBJ+MTL (WMO), with PNG textures beside it |
 | `wow_creature_search` | Find creatures and NPCs by name, creature id or display id |
-| `wow_creature_export` | Export a creature or NPC to glTF with animations and its skin. Humanoid NPCs get the right race model, hair and beard geosets, and the baked NPC skin |
+| `wow_creature_export` | Export a creature or NPC to glTF with animations and its skin. Humanoid NPCs get the right race model, hair and beard geosets, the baked NPC skin and their worn armor; helms, shoulders and weapons come out as separate models with the bone each one attaches to |
 | `wow_texture_export` | Decode a BLP texture to PNG |
 | `wow_map_search` | Find maps by name, directory or id, and turn a world position into its terrain tile |
 | `wow_map_export` | Export terrain tiles (ADT) to OBJ with a blended texture, alpha masks, or geometry only, optionally with the tile's buildings and props |
@@ -407,8 +407,10 @@ npx -y hated-wow-mcp sync model-data
 
 That fetches table layouts from WoWDBDefs and decryption keys from TACTKeys; no
 game files are downloaded. The first export in a session takes about 30 seconds
-while the storage index loads. Not covered yet: gear worn by humanoid NPCs, hair
-and face textures on humanoids, player characters, items, and terrain maps.
+while the storage index loads. Data synced before 0.8.0 lacks the NPC gear
+tables, so run `sync model-data` again after updating. Not covered yet: armor
+that ships as extra skinned meshes (some recent sets), hair and face textures on
+humanoids, and player characters.
 
 ---
 
