@@ -99,11 +99,19 @@ class CASCLocal extends CASC {
 	 * Load and parse storage indexes from the local installation.
 	 */
 	async loadIndexes() {
+		// Each bucket (first two hex digits) keeps old journal versions after a patch; only the newest is current.
 		const entries = await fsp.readdir(this.storageDir, { withFileTypes: true });
+		const latest = new Map();
 		for (const entry of entries) {
-			if (entry.isFile() && entry.name.endsWith('.idx'))
-				await this.parseIndex(path.join(this.storageDir, entry.name));
+			if (!entry.isFile() || !/^[0-9a-f]{10}\.idx$/i.test(entry.name))
+				continue;
+			const name = entry.name.toLowerCase();
+			const bucket = name.slice(0, 2);
+			if (!latest.has(bucket) || name > latest.get(bucket))
+				latest.set(bucket, name);
 		}
+		for (const name of latest.values())
+			await this.parseIndex(path.join(this.storageDir, name));
 	}
 
 	/**

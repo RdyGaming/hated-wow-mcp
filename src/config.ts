@@ -38,7 +38,7 @@ export const FLAVORS: Record<string, Flavor> = {
   mainline: {
     id: "mainline",
     label: "Retail (Midnight)",
-    interfaceVersion: 120100,
+    interfaceVersion: 120105,
     tocSuffix: "_Mainline",
     altTocSuffixes: ["_Standard"],
     apiIndex: "mainline",
