@@ -13,7 +13,7 @@ data** so texture references are real rather than invented. It can also read
 your local install and **export models headless**: creatures and NPCs with their
 skins, props, and buildings, as glTF or OBJ with PNG textures, ready for Blender.
 
-27 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
+28 tools. Setup for Claude Code, Claude Desktop, Cursor, Cline, Antigravity,
 Codex and VS Code is below, and anything else that speaks MCP works too. Or
 [browse them in a local web UI](#browse-it-without-an-mcp-client) with no client at
 all.
@@ -131,9 +131,9 @@ That starts a live server in about 4 seconds. From a
 [clone](#running-from-a-clone), `"command": "node"` with the path to
 `dist/index.js` starts in half a second and needs no network.
 
-**Tool approvals.** 23 of the 27 tools only read local data and declare that
+**Tool approvals.** 23 of the 28 tools only read local data and declare that
 (`readOnlyHint`), so a client that prompts per call can safely skip them. The
-exceptions are `wow_model_export`, `wow_creature_export`, `wow_texture_export` and `wow_map_export`, which write into the
+exceptions are `wow_model_export`, `wow_creature_export`, `wow_texture_export`, `wow_map_export` and `wow_item_search` (only with `outputFile`), which write into the
 folder you name, and `wow_addon_scaffold`. The scaffold writes files only when you pass `write`,
 and it refuses to overwrite an addon that already exists unless you also pass
 `overwrite`. If you use auto-approve, leave that one out of the list.
@@ -208,7 +208,7 @@ You should get a full 18-value signature. Or run the server directly:
 npx hated-wow-mcp --list
 ```
 
-That should print all 27 tools.
+That should print all 28 tools.
 
 ### Where the data lives
 
@@ -388,6 +388,7 @@ tracks patches without anyone hand-maintaining a list.
 | --- | --- |
 | `wow_model_search` | Find M2 (creature, prop) and WMO (building) models by path words or FileDataID |
 | `wow_model_export` | Export a model to glTF with animations (M2) or OBJ+MTL (WMO), with PNG textures beside it |
+| `wow_item_search` | Search every item the client knows, with the hotfix cache (`DBCache.bin`) laid over the game files, so WoW Forever's new items are included. Filter by name, quality, binding, level, slot or new-only; optionally write the matches as JSON. It cannot say where an item drops (that data is server-side) |
 | `wow_creature_search` | Find creatures and NPCs by name, creature id or display id |
 | `wow_creature_export` | Export a creature or NPC to glTF with animations and its skin. Humanoid NPCs get the right race model, hair and beard geosets, the baked NPC skin and their worn armor; helms, shoulders and weapons come out as separate models with the bone each one attaches to |
 | `wow_texture_export` | Decode a BLP texture to PNG |

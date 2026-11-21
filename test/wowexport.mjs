@@ -115,6 +115,20 @@ const { findInstallations } = await import("../dist/config.js");
 const { setupProblem } = await import("../dist/wowexport/index.js");
 const { ALL_TOOLS } = await import("../dist/server.js");
 
+const { hotfixCachePath } = await import("../dist/wowexport/index.js");
+const forever = findInstallations().find((i) => i.flavor.apiIndex === "forever" || i.flavor.id === "forever");
+if (!forever || setupProblem() !== null || !hotfixCachePath(forever)) {
+  console.log("  skip  real hotfix read (no WoW Forever install with a hotfix cache)");
+} else {
+  await verify("real hotfix read: a WoW Forever item that exists only in DBCache.bin", async () => {
+    const tool = ALL_TOOLS.find((t) => t.name === "wow_item_search");
+    const res = await tool.handler({ query: "270227", flavor: "forever" });
+    assert.ok(!res.isError, res.content[0].text);
+    assert.match(res.content[0].text, /270227 {2}Ephemeral Choker {2}rare {2}ilvl 18 {2}req 13 {2}BoP {2}neck {2}hotfix/);
+    assert.doesNotMatch(res.content[0].text, /skipped/);
+  });
+}
+
 if (findInstallations().length === 0 || setupProblem() !== null) {
   console.log("  skip  real export (no WoW install, or game-data/model-data not synced)");
 } else {

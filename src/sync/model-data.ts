@@ -28,6 +28,8 @@ const TACT_URL = "https://raw.githubusercontent.com/wowdev/TACTKeys/master/WoW.t
 /** Tables read by the exporters and the creature lookup. */
 const DBD_TABLES = [
   "ModelFileData",
+  "Item",
+  "ItemSparse",
   "TextureFileData",
   "Creature",
   "CreatureDisplayInfo",

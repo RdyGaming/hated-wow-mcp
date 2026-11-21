@@ -13,6 +13,7 @@ const M2Exporter = require('./3D/exporters/M2Exporter');
 const WMOExporter = require('./3D/exporters/WMOExporter');
 const ADTExporter = require('./3D/exporters/ADTExporter');
 const db2 = require('./casc/db2');
+const { readHotfixTable } = require('./db/HotfixReader');
 
 let cascKey = null;
 let casc = null;
@@ -203,6 +204,96 @@ const exportAttachments = async (m2, equipment, extra, dir, label, format) => {
 		}
 	}
 	return out;
+};
+
+let itemIndex = null;
+
+/**
+ * Every item the client knows: CASC ItemSparse/Item rows with the hotfix cache laid over them.
+ * On WoW Forever the new items exist only in the hotfix cache.
+ * @param {string} [cachePath] DBCache.bin to merge, when it exists.
+ */
+const loadItems = async (cachePath) => {
+	if (casc === null)
+		throw new Error('CASC not open');
+	const key = cascKey + '|' + (cachePath ?? '');
+	if (itemIndex && itemIndex.key === key)
+		return itemIndex;
+
+	const sparse = new Map();
+	for (const [id, row] of await db2.ItemSparse.getAllRows())
+		sparse.set(id, row);
+	const base = new Map();
+	for (const [id, row] of await db2.Item.getAllRows())
+		base.set(id, row);
+
+	const hotfixIDs = new Set();
+	let build = null;
+	let skipped = 0;
+	if (cachePath && require('fs').existsSync(cachePath)) {
+		for (const table of ['ItemSparse', 'Item']) {
+			const hot = await readHotfixTable(cachePath, table);
+			const target = table === 'Item' ? base : sparse;
+			for (const id of hot.deleted)
+				target.delete(id);
+			for (const [id, row] of hot.rows) {
+				target.set(id, row);
+				if (table === 'ItemSparse')
+					hotfixIDs.add(id);
+			}
+			build = hot.build;
+			skipped += hot.skipped;
+		}
+	}
+
+	const items = [];
+	for (const [id, s] of sparse) {
+		const b = base.get(id) ?? {};
+		items.push({
+			id,
+			name: s.Display_lang ?? '',
+			quality: s.OverallQualityID ?? 0,
+			itemLevel: s.ItemLevel ?? 0,
+			requiredLevel: s.RequiredLevel ?? 0,
+			binding: s.Bonding ?? 0,
+			inventoryType: s.InventoryType ?? 0,
+			classID: b.ClassID ?? null,
+			subclassID: b.SubclassID ?? null,
+			allowableClass: s.AllowableClass ?? -1,
+			itemSet: s.ItemSet ?? 0,
+			hotfix: hotfixIDs.has(id),
+		});
+	}
+	items.sort((a, b) => a.id - b.id);
+	itemIndex = { key, items, build, skipped, hotfixCount: hotfixIDs.size };
+	return itemIndex;
+};
+
+/**
+ * Filter the item index.
+ * @param {{query?: string, cachePath?: string, quality?: number, binding?: number, minLevel?: number,
+ *   maxLevel?: number, inventoryType?: number, hotfixOnly?: boolean, limit?: number}} opts
+ */
+const searchItems = async (opts) => {
+	const index = await loadItems(opts.cachePath);
+	const q = String(opts.query ?? '').toLowerCase().trim();
+	const id = /^\d+$/.test(q) ? Number(q) : null;
+	const matches = index.items.filter((it) =>
+		(id !== null ? it.id === id : (!q || it.name.toLowerCase().includes(q))) &&
+		(opts.quality === undefined || it.quality === opts.quality) &&
+		(opts.binding === undefined || it.binding === opts.binding) &&
+		(opts.minLevel === undefined || it.requiredLevel >= opts.minLevel) &&
+		(opts.maxLevel === undefined || it.requiredLevel <= opts.maxLevel) &&
+		(opts.inventoryType === undefined || it.inventoryType === opts.inventoryType) &&
+		(!opts.hotfixOnly || it.hotfix));
+	return {
+		total: matches.length,
+		items: opts.limit ? matches.slice(0, opts.limit) : matches,
+		known: index.items.length,
+		hotfixCount: index.hotfixCount,
+		build: index.build,
+		skipped: index.skipped,
+	};
 };
 
 let creaturesReady = false;
@@ -504,4 +595,4 @@ const exportMap = async (opts) => {
 	return { dir: outDir, files };
 };
 
-module.exports = { open, exportModel, exportTexture, searchCreatures, exportCreature, searchMaps, tileForPosition, exportMap, listfile, getCasc: () => casc };
+module.exports = { open, exportModel, exportTexture, searchItems, searchCreatures, exportCreature, searchMaps, tileForPosition, exportMap, listfile, getCasc: () => casc };

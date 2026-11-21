@@ -6,7 +6,7 @@
  * nothing is downloaded at run time.
  */
 
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -19,6 +19,55 @@ export interface ExportResult {
   type: "m2" | "wmo";
   name: string;
   files: { type: string; fileDataID: number; file: string }[];
+}
+
+export interface ItemHit {
+  id: number;
+  name: string;
+  quality: number;
+  itemLevel: number;
+  requiredLevel: number;
+  /** 0 none, 1 bind on pickup, 2 bind on equip, 3 bind on use, 4 quest. */
+  binding: number;
+  inventoryType: number;
+  classID: number | null;
+  subclassID: number | null;
+  allowableClass: number;
+  itemSet: number;
+  /** True when the row came from the client's hotfix cache (new or changed after the build shipped). */
+  hotfix: boolean;
+}
+
+export interface ItemQuery {
+  query?: string;
+  quality?: number;
+  binding?: number;
+  minLevel?: number;
+  maxLevel?: number;
+  inventoryType?: number;
+  hotfixOnly?: boolean;
+  limit?: number;
+}
+
+export interface ItemSearchResult {
+  total: number;
+  items: ItemHit[];
+  known: number;
+  hotfixCount: number;
+  build: number | null;
+  skipped: number;
+}
+
+/** The client's hotfix cache for an install: <flavor>/Cache/ADB/<locale>/DBCache.bin, enUS first. */
+export function hotfixCachePath(install: Installation): string | null {
+  const adb = join(install.flavorPath, "Cache", "ADB");
+  if (!existsSync(adb)) return null;
+  const locales = readdirSync(adb).sort((a, b) => (a === "enUS" ? -1 : b === "enUS" ? 1 : a.localeCompare(b)));
+  for (const locale of locales) {
+    const file = join(adb, locale, "DBCache.bin");
+    if (existsSync(file)) return file;
+  }
+  return null;
 }
 
 export interface CreatureHit {
@@ -52,6 +101,7 @@ interface Driver {
     objects?: boolean;
   }): Promise<{ dir: string; files: string[] }>;
   searchCreatures(opts: { query: string; limit?: number }): Promise<CreatureHit[]>;
+  searchItems(opts: ItemQuery & { cachePath?: string }): Promise<ItemSearchResult>;
   exportCreature(opts: {
     creatureId?: number;
     creatureIds?: number[];
