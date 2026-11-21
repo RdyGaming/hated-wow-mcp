@@ -124,7 +124,7 @@ if (!forever || setupProblem() !== null || !hotfixCachePath(forever)) {
     const tool = ALL_TOOLS.find((t) => t.name === "wow_item_search");
     const res = await tool.handler({ query: "270227", flavor: "forever" });
     assert.ok(!res.isError, res.content[0].text);
-    assert.match(res.content[0].text, /270227 {2}Ephemeral Choker {2}rare {2}ilvl 18 {2}req 13 {2}BoP {2}neck {2}hotfix/);
+    assert.match(res.content[0].text, /270227 {2}Ephemeral Choker {2}rare {2}ilvl 18 {2}req 13 {2}BoP {2}neck {2}new/);
     assert.doesNotMatch(res.content[0].text, /skipped/);
   });
 }

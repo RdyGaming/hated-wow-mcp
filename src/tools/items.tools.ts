@@ -37,7 +37,8 @@ export const itemTools: ToolDef[] = [
         minLevel: z.number().int().optional().describe("Lowest required level."),
         maxLevel: z.number().int().optional().describe("Highest required level."),
         slot: z.number().int().optional().describe("Inventory type number, e.g. 2 neck, 16 back, 17 two-hand."),
-        newOnly: z.boolean().optional().describe("Only items that come from the hotfix cache."),
+        newOnly: z.boolean().optional().describe("Only items added after the build shipped (in the hotfix cache, not the game files)."),
+        changedOnly: z.boolean().optional().describe("Only items the hotfix cache adds or changes."),
         limit: z.number().int().min(1).max(500).optional().describe("Rows listed in the reply. Default 50."),
         outputFile: z.string().optional().describe("Write every match (not just the listed rows) to this JSON file."),
         flavor: z.string().optional().describe("Which installed client: mainline, forever, classic or vanilla."),
@@ -66,7 +67,8 @@ export const itemTools: ToolDef[] = [
           ...(args.minLevel !== undefined ? { minLevel: args.minLevel as number } : {}),
           ...(args.maxLevel !== undefined ? { maxLevel: args.maxLevel as number } : {}),
           ...(args.slot !== undefined ? { inventoryType: args.slot as number } : {}),
-          ...(args.newOnly ? { hotfixOnly: true } : {}),
+          ...(args.newOnly ? { newOnly: true } : {}),
+          ...(args.changedOnly ? { hotfixOnly: true } : {}),
         });
 
         let written = "";
@@ -78,7 +80,7 @@ export const itemTools: ToolDef[] = [
         }
 
         const source = cachePath
-          ? `${res.known} items known, ${res.hotfixCount} from the hotfix cache (build ${res.build ?? "?"})` +
+          ? `${res.known} items known, ${res.hotfixCount} from the hotfix cache, ${res.newCount} of them new (build ${res.build ?? "?"})` +
             (res.skipped ? `, ${res.skipped} cache rows skipped (layout mismatch)` : "")
           : `${res.known} items known (no hotfix cache found for this install)`;
         if (res.total === 0) return text(`No items match. ${source}.${written}`);
@@ -91,7 +93,7 @@ export const itemTools: ToolDef[] = [
             `req ${it.requiredLevel}`,
             BIND_LABEL[it.binding] ?? "",
             SLOT[it.inventoryType] ?? "",
-            it.hotfix ? "hotfix" : "",
+            it.isNew ? "new" : it.hotfix ? "hotfix" : "",
           ]
             .filter(Boolean)
             .join("  "),

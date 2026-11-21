@@ -36,6 +36,8 @@ export interface ItemHit {
   itemSet: number;
   /** True when the row came from the client's hotfix cache (new or changed after the build shipped). */
   hotfix: boolean;
+  /** In the hotfix cache but not in the shipped game files: added after the build (all new WoW Forever items). */
+  isNew: boolean;
 }
 
 export interface ItemQuery {
@@ -46,6 +48,7 @@ export interface ItemQuery {
   maxLevel?: number;
   inventoryType?: number;
   hotfixOnly?: boolean;
+  newOnly?: boolean;
   limit?: number;
 }
 
@@ -54,6 +57,7 @@ export interface ItemSearchResult {
   items: ItemHit[];
   known: number;
   hotfixCount: number;
+  newCount: number;
   build: number | null;
   skipped: number;
 }

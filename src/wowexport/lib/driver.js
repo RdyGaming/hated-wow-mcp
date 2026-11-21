@@ -227,6 +227,7 @@ const loadItems = async (cachePath) => {
 	for (const [id, row] of await db2.Item.getAllRows())
 		base.set(id, row);
 
+	const shippedIDs = new Set(sparse.keys());
 	const hotfixIDs = new Set();
 	let build = null;
 	let skipped = 0;
@@ -262,10 +263,11 @@ const loadItems = async (cachePath) => {
 			allowableClass: s.AllowableClass ?? -1,
 			itemSet: s.ItemSet ?? 0,
 			hotfix: hotfixIDs.has(id),
+			isNew: hotfixIDs.has(id) && !shippedIDs.has(id),
 		});
 	}
 	items.sort((a, b) => a.id - b.id);
-	itemIndex = { key, items, build, skipped, hotfixCount: hotfixIDs.size };
+	itemIndex = { key, items, build, skipped, hotfixCount: hotfixIDs.size, newCount: items.filter((it) => it.isNew).length };
 	return itemIndex;
 };
 
@@ -285,12 +287,14 @@ const searchItems = async (opts) => {
 		(opts.minLevel === undefined || it.requiredLevel >= opts.minLevel) &&
 		(opts.maxLevel === undefined || it.requiredLevel <= opts.maxLevel) &&
 		(opts.inventoryType === undefined || it.inventoryType === opts.inventoryType) &&
-		(!opts.hotfixOnly || it.hotfix));
+		(!opts.hotfixOnly || it.hotfix) &&
+		(!opts.newOnly || it.isNew));
 	return {
 		total: matches.length,
 		items: opts.limit ? matches.slice(0, opts.limit) : matches,
 		known: index.items.length,
 		hotfixCount: index.hotfixCount,
+		newCount: index.newCount,
 		build: index.build,
 		skipped: index.skipped,
 	};
