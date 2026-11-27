@@ -283,7 +283,7 @@ export const modelTools: ToolDef[] = [
       inputSchema: {
         mapId: z.number().int().describe("Map id from wow_map_search."),
         tiles: z
-          .array(z.tuple([z.number().int(), z.number().int()]))
+          .array(z.array(z.number().int()).min(2).max(2))
           .optional()
           .describe("Tile pairs [a, b] from the file name map_a_b.adt."),
         x: z.number().optional().describe("World x (north); with y, picks the tile."),

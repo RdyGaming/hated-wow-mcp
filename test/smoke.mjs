@@ -958,7 +958,7 @@ await verify("the server speaks MCP over stdio and lists every tool", async () =
   });
 });
 
-await verify("no tool schema carries keywords that Gemini-based clients reject", async () => {
+await verify("no tool schema carries keywords that Gemini-based or Draft 2020-12 clients reject", async () => {
   await withServer(async ({ request }) => {
     const { tools } = (await request("tools/list", {})).result;
     const bad = [];
@@ -968,12 +968,16 @@ await verify("no tool schema carries keywords that Gemini-based clients reject",
       for (const [k, v] of Object.entries(node)) {
         if (k === "$schema" || (k === "additionalProperties" && typeof v === "boolean")) {
           bad.push(`${tool}: ${k}`);
+        } else if (k === "additionalItems" || k === "prefixItems") {
+          bad.push(`${tool}: ${k}`);
+        } else if (k === "items" && Array.isArray(v)) {
+          bad.push(`${tool}: ${k} (tuple array)`);
         }
         walk(v, tool);
       }
     };
     for (const t of tools) walk(t.inputSchema, t.name);
-    assert.deepEqual(bad, [], `these fail Gemini function declarations:\n  ${bad.join("\n  ")}`);
+    assert.deepEqual(bad, [], `these fail Gemini/2020-12 function declarations:\n  ${bad.join("\n  ")}`);
   });
 });
 
